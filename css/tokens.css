@@ -1,0 +1,76 @@
+/* LivingTheatre — design tokens.
+   One place to retune the whole look. Colours are complete values (hex or
+   rgb()) so Tailwind utilities and app.css can both reference them, and
+   alpha modifiers work through color-mix. Dark by default: a plotting
+   surface is looked at for a long time and the character colours read
+   better dark. */
+
+:root {
+  color-scheme: dark;
+
+  --c-bg0: #0f1216;
+  --c-bg1: #151a20;
+  --c-bg2: #1c222a;
+  --c-bg3: #242c36;
+  --c-hover: #2b3542;
+  --c-bgactive: #33404f;
+
+  --c-line: #2a323c;
+  --c-line-strong: #3a4553;
+
+  --c-text: #e6ebf2;
+  --c-text-dim: #9aa7b8;
+  --c-text-faint: #6b7889;
+  --c-text-inverse: #0f1216;
+
+  --c-accent: #4c9aff;
+  --c-accent-dim: #2d6fc4;
+
+  --c-ok: #3fb950;
+  --c-warn: #d29922;
+  --c-danger: #f0574a;
+  --c-info: #58a6ff;
+
+  --presence-idle: rgb(255 255 255 / 0.07);
+  --presence-absent: transparent;
+
+  --rail-w: 232px;
+  --inspector-w: 344px;
+  --row-h: 34px;
+  --head-h: 62px;
+  --status-h: 26px;
+  --minimap-h: 26px;
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu,
+          "Helvetica Neue", Arial, sans-serif;
+  --mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --c-bg0: #f7f8fa;
+  --c-bg1: #ffffff;
+  --c-bg2: #f0f2f5;
+  --c-bg3: #e6e9ee;
+  --c-hover: #dfe4ea;
+  --c-bgactive: #ccd4de;
+
+  --c-line: #d8dde4;
+  --c-line-strong: #bcc5d0;
+
+  --c-text: #1a1f27;
+  --c-text-dim: #5a6572;
+  --c-text-faint: #8a95a3;
+  --c-text-inverse: #ffffff;
+
+  --c-accent: #1f6fd0;
+  --c-accent-dim: #4c9aff;
+
+  --c-ok: #2ea043;
+  --c-warn: #b07c10;
+  --c-danger: #cf3326;
+  --c-info: #1f6fd0;
+
+  --presence-idle: rgb(0 0 0 / 0.06);
+}

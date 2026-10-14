@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LivingTheatre — plot planning</title>
+
+<link rel="stylesheet" href="css/main.generated.css">
+
+<!--
+  No build step and no server. Classic scripts (not ES modules) so the app
+  works when index.html is opened directly from disk: modules are blocked by
+  CORS over file://, which would defeat the point of vendoring Vue locally.
+
+  css/main.generated.css is produced from css/main.css with the Tailwind CLI
+  (see README) — it is committed, so running the app needs no toolchain at all.
+-->
+<script src="vendor/vue.global.prod.js"></script>
+<script src="vendor/xlsx.full.min.js" defer></script>
+
+<script src="js/model.js"></script>
+<script src="js/fixtures.js"></script>
+<script src="js/analytics.js"></script>
+<script src="js/importer.js"></script>
+<script src="js/store.js"></script>
+<script src="js/demo.js"></script>
+<script src="js/components/ruler.js"></script>
+<script src="js/components/matrix.js"></script>
+<script src="js/components/inspector.js"></script>
+<script src="js/components/rail.js"></script>
+<script src="js/components/topbar.js"></script>
+<script src="js/components/minimap.js"></script>
+<script src="js/components/modals.js"></script>
+<script src="js/app.js"></script>
+</head>
+<body>
+<div id="app" v-cloak>
+  <div style="padding:40px;color:#9aa7b8;font:13px system-ui">Loading LivingTheatre…</div>
+</div>
+<noscript>
+  <p style="padding:20px">LivingTheatre needs JavaScript.</p>
+</noscript>
+</body>
+</html>

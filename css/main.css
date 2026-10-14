@@ -1,0 +1,36 @@
+@import "tailwindcss" source(none);
+@source "../index.html";
+@source "../js/**/*.js";
+
+@import "./tokens.css";
+@import "./app.css";
+
+/* Theme utilities read the runtime tokens, so the dark/light switch is a
+   data-theme attribute on <html> and alpha modifiers keep working. */
+@theme inline {
+  --color-bg0: var(--c-bg0);
+  --color-bg1: var(--c-bg1);
+  --color-bg2: var(--c-bg2);
+  --color-bg3: var(--c-bg3);
+  --color-hover: var(--c-hover);
+  --color-bgactive: var(--c-bgactive);
+
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+
+  --color-ink: var(--c-text);
+  --color-dim: var(--c-text-dim);
+  --color-faint: var(--c-text-faint);
+  --color-inverse: var(--c-text-inverse);
+
+  --color-accent: var(--c-accent);
+  --color-accent-dim: var(--c-accent-dim);
+
+  --color-ok: var(--c-ok);
+  --color-warn: var(--c-warn);
+  --color-danger: var(--c-danger);
+  --color-info: var(--c-info);
+
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+}
