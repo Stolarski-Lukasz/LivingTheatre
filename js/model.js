@@ -150,7 +150,12 @@
       summary: props.summary || '',
       role: props.role || '',
       status: props.status || 'active',
-      arcs: props.arcs || []
+      want: props.want || '',
+      fear: props.fear || '',
+      arc: props.arc || '',
+      voice: props.voice || '',
+      secrets: props.secrets || '',
+      notes: props.notes || ''
     };
   }
 
@@ -288,7 +293,16 @@
       c.summary = c.summary || '';
       c.role = c.role || '';
       c.status = c.status || 'active';
-      c.arcs = c.arcs || [];
+      /* arc replaces the unused arcs array; flatten it if an old file has one */
+      if (typeof c.arc !== 'string') {
+        c.arc = Array.isArray(c.arcs) ? c.arcs.join(' ') : (c.arcs || '');
+      }
+      delete c.arcs;
+      c.want = c.want || '';
+      c.fear = c.fear || '';
+      c.voice = c.voice || '';
+      c.secrets = c.secrets || '';
+      c.notes = c.notes || '';
       return c;
     });
     p.entities.places = (p.entities.places || []).map(function (x) {

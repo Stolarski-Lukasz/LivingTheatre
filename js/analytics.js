@@ -262,6 +262,11 @@
         name: ch ? ch.name : '(unknown)',
         role: ch ? ch.role : '',
         summary: ch ? ch.summary : '',
+        want: ch ? ch.want : '',
+        fear: ch ? ch.fear : '',
+        arc: ch ? ch.arc : '',
+        voice: ch ? ch.voice : '',
+        secrets: ch ? ch.secrets : '',
         presence: c.presence,
         text: c.text,
         note: c.note

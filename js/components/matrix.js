@@ -29,8 +29,7 @@
       filters: Object
     },
     emits: ['select-scene', 'select-cell', 'select-entity', 'cycle-cell', 'edit-cell',
-            'add-character', 'rename-character', 'remove-character', 'cycle-color',
-            'patch-scene', 'drop-scene', 'viewport'],
+            'add-character', 'rename-character', 'patch-scene', 'drop-scene', 'viewport'],
 
     components: {
       LtRuler: LT.components.Ruler
@@ -84,12 +83,6 @@
         <template v-else>
           <span class="rh-name" :title="row.tip">{{ row.label }}</span>
           <span v-if="row.badge" class="rh-count">{{ row.badge }}</span>
-          <span v-if="row.kind === 'character'" class="rh-tools">
-            <button class="icon-btn" title="Next colour"
-                    @click.stop="$emit('cycle-color', row.entity.id)">◐</button>
-            <button class="icon-btn" title="Remove character"
-                    @click.stop="$emit('remove-character', row.entity.id)">✕</button>
-          </span>
         </template>
       </div>
 

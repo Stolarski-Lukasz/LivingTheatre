@@ -200,7 +200,7 @@ await (async () => {
     'rows=' + window.document.querySelectorAll('.rail .scene-no').length);
   check('rail has no character list', window.document.querySelectorAll('.rail .rail-head').length === 2,
     'sections=' + window.document.querySelectorAll('.rail .rail-head').length);
-  check('inspector tabs', window.document.querySelectorAll('.insp-tabs button').length === 3);
+  check('inspector tabs', window.document.querySelectorAll('.insp-tabs button').length === 4);
   check('statusbar', !!window.document.querySelector('.statusbar'));
   check('minimap', window.document.querySelectorAll('.mm-tick').length === 23);
 
@@ -296,7 +296,7 @@ await (async () => {
 
   /* inspector: cell tab reachable after scene-only selection */
   const tabs = doc.querySelectorAll('.insp-tabs button');
-  fire(tabs[1], 'click');
+  fire(tabs[2], 'click');
   await flush();
   check('cell tab renders presence picker', !!doc.querySelector('.presence-picker'));
   fire(tabs[0], 'click');
@@ -304,7 +304,7 @@ await (async () => {
   check('scene tab renders fields', !!doc.querySelectorAll('.insp-section .insp-input').length);
 
   /* presence picker writes through */
-  fire(doc.querySelectorAll('.insp-tabs button')[1], 'click');
+  fire(doc.querySelectorAll('.insp-tabs button')[2], 'click');
   await flush();
   const pickButtons = doc.querySelectorAll('.presence-picker button');
   fire(pickButtons[2], 'click');
@@ -374,6 +374,8 @@ await (async () => {
   if (addRow) { fire(addRow, 'click'); await flush(); }
   eq('add row adds a character', s.project.entities.characters.length, charsBefore + 1);
   check('new character selected', s.selection.entityId === s.project.entities.characters[charsBefore].id);
+  eq('new character opens Character tab', s.selection.kind, 'character');
+  check('character tab active after add', doc.querySelectorAll('.insp-tabs button')[1].classList.contains('on'));
 
   const rowheads = doc.querySelectorAll('.m-rowhead:not(.stripe):not(.add-rowhead):not(.special)');
   check('character rowheads rendered', rowheads.length === charsBefore + 1, 'rows=' + rowheads.length);
@@ -402,24 +404,16 @@ await (async () => {
     }
   }
 
-  const colorBtn = [...doc.querySelectorAll('.rh-tools button')].find((b) => b.title.includes('colour'));
-  const colorBefore = s.project.entities.characters[0].color;
-  if (colorBtn) { fire(colorBtn, 'click'); await flush(); }
-  check('rowhead cycles colour', s.project.entities.characters[0].color !== colorBefore);
-
-  const removeBtn = [...doc.querySelectorAll('.rh-tools button')].find((b) => b.title.includes('Remove'));
-  const countBefore = s.project.entities.characters.length;
-  if (removeBtn) {
-    window.confirm = () => true;
-    fire(removeBtn, 'click');
-    await flush();
-  }
-  eq('rowhead removes character', s.project.entities.characters.length, countBefore - 1);
+  check('no rowhead tool buttons remain', doc.querySelectorAll('.rh-tools').length === 0 &&
+    doc.querySelectorAll('.rh-opts').length === 0);
 
   const rowheadClick = [...doc.querySelectorAll('.m-rowhead:not(.stripe):not(.add-rowhead):not(.special)')][0];
   fire(rowheadClick, 'click');
   await flush();
-  check('rowhead click selects character', !!s.selection.entityId);
+  check('track click selects character', !!s.selection.entityId);
+  eq('track click opens Character tab', s.selection.kind, 'character');
+  check('character tab active after track click',
+    doc.querySelectorAll('.insp-tabs button')[1].classList.contains('on'));
 
   await flush();
   console.log('\n== strips under the header, above the tracks ==');
@@ -445,7 +439,7 @@ await (async () => {
   await flush();
   eq('cell click sets kind', s.selection.kind, 'cell');
   const sceneTabBtn = doc.querySelectorAll('.insp-tabs button')[0];
-  const cellTabBtn = doc.querySelectorAll('.insp-tabs button')[1];
+  const cellTabBtn = doc.querySelectorAll('.insp-tabs button')[2];
   check('cell selection shows Cell tab', cellTabBtn.classList.contains('on'), 'tab=' + (cellTabBtn.classList.contains('on') ? 'cell' : 'scene'));
 
   const head3 = doc.querySelectorAll('.m-colhead')[3];
@@ -561,6 +555,114 @@ await (async () => {
     const normalCell = charRow.querySelectorAll('.m-cell')[0];
     check('normal column not marked', !normalCell.classList.contains('hiddencol'));
   }
+
+  await flush();
+  console.log('\n== character options ==');
+  a.importProject(JSON.parse(JSON.stringify(p)));
+  await flush();
+
+  const rowheadOpts = doc.querySelectorAll('.rh-opts');
+  check('no per-track options buttons', rowheadOpts.length === 0, 'n=' + rowheadOpts.length);
+
+  a.selectCharacter(s.project.entities.characters[0].id);
+  await flush();
+  eq('kind is character', s.selection.kind, 'character');
+  check('scene selection preserved', !!s.selection.sceneId || s.selection.sceneId === null);
+  const charTabBtn = doc.querySelectorAll('.insp-tabs button')[1];
+  const sceneTabBtn0 = doc.querySelectorAll('.insp-tabs button')[0];
+  const cellTabBtn0 = doc.querySelectorAll('.insp-tabs button')[2];
+  check('character tab active', charTabBtn.classList.contains('on') &&
+    !sceneTabBtn0.classList.contains('on') && !cellTabBtn0.classList.contains('on'),
+    'scene=' + sceneTabBtn0.classList.contains('on') + ' cell=' + cellTabBtn0.classList.contains('on'));
+
+  check('character stats strip', !!doc.querySelector('.char-stats'));
+  check('palette picker', doc.querySelectorAll('.swatch-btn').length === 12,
+    'n=' + doc.querySelectorAll('.swatch-btn').length);
+  check('character fields rendered', doc.querySelectorAll('.insp-area').length === 7,
+    'n=' + doc.querySelectorAll('.insp-area').length);
+
+  /* reachable with no scene selected at all */
+  a.selectScene(null);
+  a.selectCharacter(s.project.entities.characters[1].id);
+  await flush();
+  check('character tab without scene', charTabBtn.classList.contains('on') && !!doc.querySelector('.char-swatches'));
+
+  /* edit a field end to end — fields are summary, want, fear, arc, voice, secrets, notes.
+     undo replaces the project object, so re-resolve the character each time. */
+  const target = function () { return s.project.entities.characters[1]; };
+  const wantField = doc.querySelectorAll('.insp-area')[1];
+  eq('want field prefilled empty', wantField.value, '');
+  wantField.value = 'wants the ledger back';
+  wantField.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await flush();
+  eq('want committed', target().want, 'wants the ledger back');
+
+  a.undo();
+  await flush();
+  eq('undo reverts character field', target().want, '');
+
+  /* summary and the read-only stats strip */
+  const summaryField = doc.querySelectorAll('.insp-area')[0];
+  summaryField.value = 'the quieter brother';
+  summaryField.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await flush();
+  eq('summary committed', target().summary, 'the quieter brother');
+  check('stats strip shows counts', /scenes/.test(doc.querySelector('.char-stats').textContent),
+    doc.querySelector('.char-stats').textContent);
+
+  /* palette pick */
+  const swatch = doc.querySelectorAll('.swatch-btn')[5];
+  const colorBeforeSwatch = target().color;
+  fire(swatch, 'click');
+  await flush();
+  check('palette sets colour', target().color !== colorBeforeSwatch, colorBeforeSwatch + ' -> ' + target().color);
+
+  /* track click from the matrix rowhead opens Character */
+  const charRowheads = [...doc.querySelectorAll('.m-rowhead')].filter((el) =>
+    el.querySelector('.rh-name') && !el.classList.contains('stripe') &&
+    !el.classList.contains('add-rowhead'));
+  fire(charRowheads[2], 'click');
+  await flush();
+  eq('track click selects character', s.selection.entityId, s.project.entities.characters[2].id);
+  eq('track click sets kind', s.selection.kind, 'character');
+
+  /* delete from the Character tab */
+  const delBtn = [...doc.querySelectorAll('.insp-actions .btn')].find((b) => b.textContent.includes('Delete character'));
+  check('character tab has a delete button', !!delBtn);
+  const countBeforeDel = s.project.entities.characters.length;
+  if (delBtn) {
+    window.confirm = () => true;
+    fire(delBtn, 'click');
+    await flush();
+  }
+  eq('delete removes the character', s.project.entities.characters.length, countBeforeDel - 1);
+  check('selection cleared to scene', s.selection.entityId === null && s.selection.kind === 'scene',
+    JSON.stringify(s.selection));
+
+  /* switching to Cell tab still works — with a scene selected */
+  a.selectScene(s.project.scenes[0].id);
+  a.selectCharacter(s.project.entities.characters[0].id);
+  await flush();
+  fire(doc.querySelectorAll('.insp-tabs button')[2], 'click');
+  await flush();
+  check('cell tab from character state', doc.querySelectorAll('.presence-picker button').length === 3,
+    'picks=' + doc.querySelectorAll('.presence-picker button').length);
+
+  console.log('\n== model migration: legacy arcs ==');
+  var legacy = LT.model.migrate({
+    meta: { id: 'x', title: 'legacy' },
+    entities: { characters: [{ id: 'c1', name: 'Old', arcs: ['was timid', 'became cruel'] }] },
+    scenes: [], cells: [], threadCells: [], links: []
+  });
+  const legacyChar = legacy.entities.characters[0];
+  check('arcs flattened into arc', legacyChar.arc === 'was timid became cruel', legacyChar.arc);
+  check('arcs key removed', !('arcs' in legacyChar));
+  check('new fields defaulted', legacyChar.want === '' && legacyChar.voice === '' && legacyChar.secrets === '');
+
+  const ctxCard = LT.analytics.contextForScene(JSON.parse(JSON.stringify(demo)), demo.scenes[0].id);
+  const idaCard = ctxCard.present.filter(function (x) { return x.name === 'Ida'; })[0];
+  check('context pack carries characteristics', idaCard && idaCard.want.length > 0 && idaCard.voice.length > 0,
+    idaCard && idaCard.want);
 
   await flush();
   console.log('\n== rail collapse & resize ==');

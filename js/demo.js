@@ -20,9 +20,31 @@
     var ch3 = model.createChapter({ title: 'Chapter 3', order: 2 });
     p.chapters = [ch1, ch2, ch3];
 
-    var ida = model.createCharacter({ name: 'Ida', color: '#e05263', role: 'detective', summary: 'Works from what people do, not what they say.' });
-    var jan = model.createCharacter({ name: 'Jan', color: '#3d7dd8', role: 'suspect', summary: 'Loud, defensive, hides a debt.' });
-    var ewa = model.createCharacter({ name: 'Ewa', color: '#2fa06a', role: 'witness', summary: 'Saw more than she admits.' });
+    var ida = model.createCharacter({
+      name: 'Ida', color: '#e05263', role: 'detective',
+      summary: 'Works from what people do, not what they say.',
+      want: 'Close the theft before the family closes ranks around it.',
+      fear: 'Being made a fool of by people she has already read correctly.',
+      arc: 'Starts trusting only the physical record; ends by acting on what Ewa almost said.',
+      voice: 'Short declaratives. Never asks a question she cannot already half-answer.',
+      secrets: 'Has not filed the photograph of the crack with anyone.'
+    });
+    var jan = model.createCharacter({
+      name: 'Jan', color: '#3d7dd8', role: 'suspect',
+      summary: 'Loud, defensive, hides a debt.',
+      want: 'Keep the debt secret a little longer — long enough to move the money.',
+      fear: 'His brother finding out the figure, and who named it.',
+      arc: 'From denying everything, to bargaining with the smaller crime.',
+      voice: 'Over-explains. Repeats the alibi word for word.',
+      secrets: 'Burned the ledger page during the night; nobody saw it.'
+    });
+    var ewa = model.createCharacter({
+      name: 'Ewa', color: '#2fa06a', role: 'witness',
+      summary: 'Saw more than she admits.',
+      want: 'Protect whoever she saw, at any cost to her own credibility.',
+      fear: 'Being the one who named him out loud.',
+      voice: 'Retracts mid-sentence. Answers questions that were not asked.'
+    });
     var old  = model.createCharacter({ name: 'The broker', color: '#8256c4', role: 'offstage', summary: 'Never appears in person.', status: 'mentioned' });
     p.entities.characters = [ida, jan, ewa, old];
 

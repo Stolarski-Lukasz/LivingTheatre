@@ -399,7 +399,7 @@
       p.cells = p.cells.filter(function (c) { return c.entityId !== id; });
       p.scenes.forEach(function (s) { if (s.pov === id) { s.pov = null; s.povIsNarrator = true; } });
       if (state.selection.entityId === id) {
-        state.selection.entityId = null;
+        state.selection = { sceneId: state.selection.sceneId, entityId: null, kind: 'scene' };
       }
     });
   }
@@ -655,6 +655,16 @@
     };
   }
 
+  /* Character options: the scene selection is kept so the Cell tab stays
+     usable, only the inspector's default tab changes. */
+  function selectCharacter(entityId) {
+    state.selection = {
+      sceneId: state.selection.sceneId,
+      entityId: entityId,
+      kind: 'character'
+    };
+  }
+
   function setZoom(level) {
     state.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(level)));
   }
@@ -714,6 +724,7 @@
       select: select,
       selectCell: selectCell,
       selectScene: selectScene,
+      selectCharacter: selectCharacter,
       setZoom: setZoom,
       setRailOpen: setRailOpen,
       toggleRail: toggleRail,

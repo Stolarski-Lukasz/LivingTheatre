@@ -241,7 +241,7 @@ const tabs = await page.evaluate(async () => {
   btns[0].click();
   await new Promise((r) => setTimeout(r, 60));
   const sceneFields = document.querySelectorAll('.insp-section .insp-input').length;
-  btns[1].click();
+  btns[2].click();
   await new Promise((r) => setTimeout(r, 60));
   const picker = !!document.querySelector('.presence-picker');
   btns[0].click();
@@ -312,15 +312,12 @@ check('drag resizes rail', Math.abs(resized.railW - 420) < 8 && Math.abs(resized
   JSON.stringify(resized));
 await page.screenshot({ path: path.join(shots, '11-rail-resized.png') });
 
-await page.hover('.m-rowhead:not(.stripe):not(.add-rowhead):not(.special)');
-await page.waitForTimeout(120);
-const tools = await page.evaluate(() => {
-  const t = document.querySelector('.rh-tools');
-  if (!t) return { shown: false, buttons: 0 };
-  return { shown: getComputedStyle(t).display !== 'none', buttons: t.querySelectorAll('button').length };
-});
-check('rowhead hover reveals tools', tools.shown && tools.buttons === 2, JSON.stringify(tools));
-await page.screenshot({ path: path.join(shots, '12-rowhead-tools.png') });
+const noHoverTools = await page.evaluate(() => ({
+  tools: document.querySelectorAll('.rh-tools').length,
+  opts: document.querySelectorAll('.rh-opts').length
+}));
+check('rowheads carry no hover tools', noHoverTools.tools === 0 && noHoverTools.opts === 0,
+  JSON.stringify(noHoverTools));
 
 console.log('\n== inspector resize ==');
 const inspBefore = await page.evaluate(() => ({
@@ -407,6 +404,82 @@ check('presence fill survives in hidden column', !!hid.filledFill && hid.filledH
 check('ruler tick struck through', hid.tickHidden && /line-through/.test(hid.tickDecor), hid.tickDecor);
 check('story marker hollowed', hid.hollow);
 await page.screenshot({ path: path.join(shots, '20-hidden-column.png') });
+
+console.log('\n== character options tab ==');
+  const charTab = await page.evaluate(async () => {
+  const s = window.LT.store.state;
+  const target = s.project.entities.characters[1];
+  s.selection = { sceneId: null, entityId: target.id, kind: 'character' };
+  await new Promise((r) => setTimeout(r, 120));
+  const btns = [...document.querySelectorAll('.insp-tabs button')];
+  const onIdx = btns.findIndex((b) => b.classList.contains('on'));
+  const stats = document.querySelector('.char-stats');
+  const areas = document.querySelectorAll('.insp-area');
+  const swatches = document.querySelectorAll('.swatch-btn');
+  const optBtnCount = document.querySelectorAll('.rh-opts').length;
+  const nameInput = document.querySelector('.insp-section .insp-input');
+  return {
+    tabOn: btns[onIdx] && btns[onIdx].textContent.trim(),
+    tabCount: btns.length,
+    stats: !!stats && /scenes/.test(stats.textContent),
+    fields: areas.length,
+    swatches: swatches.length,
+    optBtnCount: optBtnCount,
+    wantPrefill: areas[1] ? areas[1].value : null,
+    nameValue: nameInput ? nameInput.value : null,
+    expectedName: target.name
+  };
+});
+check('character tab opens without a scene', charTab.tabOn === 'Character', charTab.tabOn);
+check('three tabs plus close', charTab.tabCount === 4, 'n=' + charTab.tabCount);
+check('stats strip rendered', charTab.stats);
+check('seven text fields', charTab.fields === 7, 'n=' + charTab.fields);
+check('palette rendered', charTab.swatches === 12, 'n=' + charTab.swatches);
+check('no options button on tracks', charTab.optBtnCount === 0, 'n=' + charTab.optBtnCount);
+check('name prefilled from data', charTab.nameValue === charTab.expectedName,
+  charTab.nameValue + ' vs ' + charTab.expectedName);
+
+const charEdit = await page.evaluate(async () => {
+  const s = window.LT.store.state;
+  const areas = document.querySelectorAll('.insp-area');
+  areas[1].value = 'browser-set want';
+  areas[1].dispatchEvent(new Event('change', { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 100));
+  return s.project.entities.characters[1].want;
+});
+check('character field commits in browser', charEdit === 'browser-set want', charEdit);
+
+const trackClick = await page.evaluate(async () => {
+  const s = window.LT.store.state;
+  const rh = [...document.querySelectorAll('.m-rowhead')].find((el) =>
+    el.querySelector('.rh-name') && !el.classList.contains('stripe') && !el.classList.contains('add-rowhead'));
+  rh.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 120));
+  const btns = [...document.querySelectorAll('.insp-tabs button')];
+  return {
+    kind: s.selection.kind,
+    tabOn: btns.find((b) => b.classList.contains('on')).textContent.trim(),
+    hasDelete: !![...document.querySelectorAll('.insp-actions .btn')].find((b) => /Delete character/.test(b.textContent))
+  };
+});
+check('matrix track click opens Character tab', trackClick.kind === 'character' && trackClick.tabOn === 'Character',
+  JSON.stringify(trackClick));
+check('character tab offers delete', trackClick.hasDelete);
+
+const trackDel = await page.evaluate(async () => {
+  const s = window.LT.store.state;
+  const before = s.project.entities.characters.length;
+  const btn = [...document.querySelectorAll('.insp-actions .btn')].find((b) => /Delete character/.test(b.textContent));
+  window.confirm = () => true;
+  btn.click();
+  await new Promise((r) => setTimeout(r, 150));
+  return { before, after: s.project.entities.characters.length, sel: s.selection };
+});
+check('character delete from tab works', trackDel.after === trackDel.before - 1,
+  trackDel.before + ' -> ' + trackDel.after);
+check('selection falls back to scene', trackDel.sel.entityId === null && trackDel.sel.kind === 'scene',
+  JSON.stringify(trackDel.sel));
+await page.screenshot({ path: path.join(shots, '26-character-tab.png') });
 
 console.log('\n== persistence & reload ==');
 await page.evaluate(() => window.LT.store.actions.persist());

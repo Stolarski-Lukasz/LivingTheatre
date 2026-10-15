@@ -54,6 +54,16 @@
         return LT.analytics.fullReport(s.project);
       });
 
+      var entityStats = Vue.computed(function () {
+        var id = s.selection.entityId;
+        if (!id) return null;
+        var entry = null;
+        LT.analytics.characterCoverage(s.project).forEach(function (c) {
+          if (c.character.id === id) entry = c;
+        });
+        return entry;
+      });
+
       /* The rail yields to the inspector on narrow screens instead of
          squeezing both into the middle. */
       var mql = typeof window.matchMedia === 'function'
@@ -115,8 +125,15 @@
         store.actions.selectCell(payload.sceneId, payload.entityId);
       }
 
+      /* Clicking a character track opens their options; cells keep the Cell
+         tab, scene-level things keep the Scene tab. */
       function onSelectEntity(entityId) {
-        a.selectCell(s.selection.sceneId, entityId);
+        a.selectCharacter(entityId);
+      }
+
+      function onUpdateCharacter(patch) {
+        var id = s.selection.entityId;
+        if (id) a.updateCharacter(id, patch || {});
       }
 
       function onCycleCell(payload) {
@@ -210,8 +227,8 @@
       /* ---------- entities & scenes ---------- */
       function addCharacter() {
         var c = a.addCharacter({ name: 'New character' });
-        s.selection.entityId = c.id;
-        a.notice('Added "' + c.name + '". Rename it in the rail.', 'ok');
+        a.selectCharacter(c.id);
+        a.notice('Added "' + c.name + '". Fill in the Character tab.', 'ok');
       }
 
       function renameCharacter(id, name) {
@@ -219,17 +236,13 @@
         if (next) a.updateCharacter(id, { name: next });
       }
 
-      function removeCharacter(id) {
-        if (window.confirm('Remove this character and all of their cells?')) {
+      function removeCharacter() {
+        var id = s.selection.entityId;
+        if (!id) return;
+        var c = model.byId(s.project.entities.characters, id);
+        if (window.confirm('Remove "' + (c ? c.name : 'this character') + '" and all of their cells?')) {
           a.removeCharacter(id);
         }
-      }
-
-      function cycleColor(id) {
-        var c = model.byId(s.project.entities.characters, id);
-        if (!c) return;
-        var i = model.PALETTE.indexOf(c.color);
-        a.updateCharacter(id, { color: model.PALETTE[(i + 1) % model.PALETTE.length] });
       }
 
       function addScene() {
@@ -518,6 +531,7 @@
       return {
         s: s, d: d, a: a, model: model,
         report: report,
+        entityStats: entityStats,
         totals: totals,
         modal: modal,
         fileInput: fileInput,
@@ -536,6 +550,7 @@
 
         onSelectScene: onSelectScene,
         onPatchScene: onPatchScene,
+        onUpdateCharacter: onUpdateCharacter,
         onSelectCell: onSelectCell,
         onSelectEntity: onSelectEntity,
         onCycleCell: onCycleCell,
@@ -555,7 +570,6 @@
         addCharacter: addCharacter,
         renameCharacter: renameCharacter,
         removeCharacter: removeCharacter,
-        cycleColor: cycleColor,
         addScene: addScene,
 
         pickFile: pickFile,
@@ -653,8 +667,6 @@
       @edit-cell="onEditCell"
       @add-character="addCharacter"
       @rename-character="renameCharacter"
-      @remove-character="removeCharacter"
-      @cycle-color="cycleColor"
       @patch-scene="onPatchScene"
       @drop-scene="onDropScene"
       @viewport="onViewport" />
@@ -678,6 +690,7 @@
         :scene="selectedScene"
         :entity="selectedEntity"
         :cell="selectedCell"
+        :entity-stats="entityStats"
         :all-scenes="s.project.scenes"
         :chapters="s.project.chapters"
         :characters="s.project.entities.characters"
@@ -686,6 +699,8 @@
         @set-presence="setPresence"
         @clear-cell="clearCell"
         @update-scene="updateScene"
+        @update-character="onUpdateCharacter"
+        @remove-character="removeCharacter"
         @select-scene="onSelectScene"
         @move-scene="moveScene"
         @remove-scene="removeScene"

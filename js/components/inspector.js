@@ -22,36 +22,129 @@
       scene: Object,
       entity: Object,
       cell: Object,
+      entityStats: Object,
       allScenes: Array,
       chapters: Array,
       characters: Array
     },
     emits: ['update-cell', 'update-note', 'set-presence', 'clear-cell',
-            'update-scene', 'select-scene', 'move-scene', 'remove-scene', 'close'],
+            'update-scene', 'update-character', 'remove-character',
+            'select-scene', 'move-scene', 'remove-scene', 'close'],
 
     template: `
 <div class="inspector-inner">
   <div class="insp-tabs">
     <button :class="{ on: tab === 'scene' }" @click="tab = 'scene'"
             :disabled="!scene">Scene</button>
+    <button :class="{ on: tab === 'character' }" @click="tab = 'character'"
+            :disabled="!entity" title="Character options">Character</button>
     <button :class="{ on: tab === 'cell' }" @click="tab = 'cell'"
-            :disabled="!scene">Cell</button>
+            :disabled="!scene || !entity">Cell</button>
     <span class="spacer"></span>
     <button class="icon-btn" title="Close (Esc)" @click="$emit('close')">✕</button>
   </div>
 
-  <div v-if="!scene" class="insp-empty">
+  <div v-if="!scene && !entity" class="insp-empty">
     <p class="insp-empty-mark">◧</p>
-    <p>Select a scene or a cell.</p>
+    <p>Select a scene, a cell or a character.</p>
     <p class="insp-hint">
-      Click a cell to select · alt+click cycles presence ·
-      double-click writes what a character does · drag a scene header to reorder.
+      Click a track to open a character's options · click a cell to select ·
+      alt+click cycles presence · double-click a cell writes what a character
+      does · double-click a track name renames · drag a scene header to reorder.
     </p>
   </div>
 
   <template v-else>
+    <!-- ============ character tab ============ -->
+    <div v-if="tab === 'character'" class="insp-section">
+      <div class="insp-title">
+        <span class="swatch" :style="{ background: entity.color }"></span>
+        <span>{{ entity.name }}</span>
+      </div>
+
+      <div v-if="entityStats" class="char-stats">
+        <span>{{ entityStats.total }} scenes</span>
+        <span class="dot-sep"></span>
+        <span>{{ entityStats.active }} active</span>
+        <span class="dot-sep"></span>
+        <span>{{ entityStats.idle }} idle</span>
+        <template v-if="entityStats.firstOrder !== null">
+          <span class="dot-sep"></span>
+          <span>first {{ entityStats.firstOrder + 1 }}</span>
+          <span>· last {{ entityStats.lastOrder + 1 }}</span>
+        </template>
+        <span v-if="entityStats.vanished" class="char-stat-warn"
+              :title="'Not seen in the last ' + (entityStats.total - 1 - entityStats.lastOrder) + ' scenes'">
+          dormant
+        </span>
+      </div>
+
+      <div class="field-label">Name</div>
+      <input class="insp-input" :value="entity.name"
+             @change="$emit('update-character', { name: $event.target.value })">
+
+      <div class="field-label">Role</div>
+      <input class="insp-input" :value="entity.role" placeholder="e.g. detective, the broker"
+             @change="$emit('update-character', { role: $event.target.value })">
+
+      <div class="field-label">Status</div>
+      <select class="insp-input" :value="entity.status"
+              @change="$emit('update-character', { status: $event.target.value })">
+        <option value="active">active</option>
+        <option value="mentioned">mentioned (offstage, never appears)</option>
+      </select>
+
+      <div class="field-label">Colour</div>
+      <div class="char-swatches">
+        <button v-for="c in palette" :key="c" class="swatch-btn"
+                :class="{ on: entity.color === c }"
+                :style="{ background: c }"
+                :title="c"
+                @click="$emit('update-character', { color: c })"></button>
+      </div>
+
+      <div class="field-label">Summary</div>
+      <textarea class="insp-textarea insp-area" :value="entity.summary"
+                placeholder="Who they are, in one or two sentences."
+                @change="$emit('update-character', { summary: $event.target.value })"></textarea>
+
+      <div class="field-label">Want</div>
+      <textarea class="insp-textarea insp-area" :value="entity.want"
+                placeholder="What they pursue — the engine of their decisions."
+                @change="$emit('update-character', { want: $event.target.value })"></textarea>
+
+      <div class="field-label">Fear / flaw</div>
+      <textarea class="insp-textarea insp-area" :value="entity.fear"
+                placeholder="What blocks them — the source of believable mistakes."
+                @change="$emit('update-character', { fear: $event.target.value })"></textarea>
+
+      <div class="field-label">Arc</div>
+      <textarea class="insp-textarea insp-area" :value="entity.arc"
+                placeholder="How they change from beginning to end."
+                @change="$emit('update-character', { arc: $event.target.value })"></textarea>
+
+      <div class="field-label">Voice</div>
+      <textarea class="insp-textarea insp-area" :value="entity.voice"
+                placeholder="Diction, rhythm, verbal habits — for writing their dialogue."
+                @change="$emit('update-character', { voice: $event.target.value })"></textarea>
+
+      <div class="field-label">Secrets</div>
+      <textarea class="insp-textarea insp-area" :value="entity.secrets"
+                placeholder="What they know that others don't — and who must not find out."
+                @change="$emit('update-character', { secrets: $event.target.value })"></textarea>
+
+      <div class="field-label">Notes</div>
+      <textarea class="insp-textarea insp-area" :value="entity.notes"
+                placeholder="Anything else: casting, research, open questions."
+                @change="$emit('update-character', { notes: $event.target.value })"></textarea>
+
+      <div class="insp-actions">
+        <button class="btn danger" @click="removeCharacter">Delete character</button>
+      </div>
+    </div>
+
     <!-- ============ scene tab ============ -->
-    <div v-if="tab === 'scene'" class="insp-section">
+    <div v-else-if="tab === 'scene' && scene" class="insp-section">
       <div class="insp-title">
         <span>Scene {{ scene.order + 1 }}</span>
         <span class="spacer"></span>
@@ -147,19 +240,25 @@
       var emit = ctx.emit;
       var tab = Vue.ref('scene');
 
-      /* The tab follows the selection kind: a character cell opens Cell,
-         a scene header or a strip cell opens Scene — even when a character
-         is still selected from before. */
+      /* The tab follows the selection kind: character options opens Character,
+         a character cell opens Cell, a scene header or strip cell opens Scene
+         — even when other selections are still set. */
       Vue.watch(function () {
-        return (props.selection && props.selection.kind) + ':' + (props.scene && props.scene.id);
+        return (props.selection && props.selection.kind) + ':' + (props.scene && props.scene.id) +
+          ':' + (props.entity && props.entity.id);
       }, function () {
-        tab.value = (props.selection && props.selection.kind === 'cell' && props.entity)
-          ? 'cell' : 'scene';
+        var kind = props.selection && props.selection.kind;
+        if (kind === 'character' && props.entity) tab.value = 'character';
+        else if (kind === 'cell' && props.entity && props.scene) tab.value = 'cell';
+        else if (props.scene) tab.value = 'scene';
+        else if (props.entity) tab.value = 'character';
+        else tab.value = 'scene';
       });
 
       var modes = model.SCENE_MODES;
       var presenceOrder = model.PRESENCE_ORDER;
       var presenceLabels = PRESENCE_LABELS;
+      var palette = model.PALETTE;
 
       var cellValue = Vue.computed(function () {
         return props.cell ? props.cell.text : '';
@@ -199,11 +298,19 @@
         }
       }
 
+      function removeCharacter() {
+        if (!props.entity) return;
+        if (window.confirm('Remove "' + props.entity.name + '" and all of their cells?')) {
+          emit('remove-character');
+        }
+      }
+
       return {
         tab: tab,
         modes: modes,
         presenceOrder: presenceOrder,
         presenceLabels: presenceLabels,
+        palette: palette,
         cellValue: cellValue,
         noteValue: noteValue,
         currentPresence: currentPresence,
@@ -211,7 +318,8 @@
         otherScenes: otherScenes,
         patchScene: patchScene,
         patchPov: patchPov,
-        removeScene: removeScene
+        removeScene: removeScene,
+        removeCharacter: removeCharacter
       };
     }
   };

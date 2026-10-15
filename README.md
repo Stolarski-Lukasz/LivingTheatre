@@ -73,10 +73,21 @@ Details that matter in practice:
   (`ctrl+enter` or blur to commit, `esc` to cancel).
 - **Reorder** by dragging a scene header; a drop line shows the landing gap.
 - **Tracks** — one row per character, above them a `+ character` row to add
-  more. Double-click a track name to rename, and hover a track for its colour
-  and remove buttons. Characters are deliberately **not** duplicated in the
-  sidebar; the matrix is where they live. The sidebar width is remembered
-  between sessions.
+  more. **Click a track to open that character's options** in the inspector;
+  double-click a track name to rename it inline. Adding a character opens
+  their Character tab straight away. Colour, deletion and every other
+  characteristic live in that tab — the row itself shows only the swatch,
+  the name and the active-count badge. Characters are deliberately **not**
+  duplicated in the sidebar; the matrix is where they live. The sidebar
+  width is remembered between sessions.
+- **Character options** — the inspector's *Character* tab holds the
+  dramaturgy card: name, role, status (active / mentioned-offstage), colour
+  from the palette, **summary, want, fear/flaw, arc, voice, secrets,
+  notes**, and a delete button. A read-only strip above the fields shows the
+  character's presence statistics — scenes, active/idle counts, first and
+  last appearance, and a *dormant* warning when they have not appeared in a
+  long time. All of it feeds `analytics.contextForScene()`, the retrieval
+  pack the assistant will use later.
 - **Sidebar** — collapsible (the chevron at the left of the toolbar or
   `ctrl+B`) and resizable (drag its right edge, double-click to reset). It
   lists scenes and the report, and scrolls. The inspector on the right works
@@ -190,6 +201,12 @@ cells:       { sceneId, entityId, presence, text, note }
 threadCells: { sceneId, threadId, kind, text }
 links:       { type: setup|payoff|cause|effect|reference, fromSceneId, toSceneId }
 ```
+
+A character carries: `name, color, summary, role, status
+(active|mentioned), want, fear, arc, voice, secrets, notes` — the card the
+inspector's Character tab edits, and the card `contextForScene()` sends to
+the assistant. (The unused `arcs: []` array from the first draft was
+replaced by `arc`; `normalize()` flattens old files on load.)
 
 `model.normalize()` fills missing fields, sorts orderings and drops dangling
 references, so a hand-edited or externally generated file cannot break the app.

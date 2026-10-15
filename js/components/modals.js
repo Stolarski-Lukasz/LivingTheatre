@@ -91,6 +91,7 @@
           <tr><td>double-click strip cell</td><td>edit perspective / place / story time</td></tr>
           <tr><td>alt+click cell</td><td>cycle presence · absent → idle → active</td></tr>
           <tr><td>drag scene header</td><td>reorder the presentation</td></tr>
+          <tr><td>click track</td><td>character options</td></tr>
           <tr><td>double-click track name</td><td>rename a character</td></tr>
           <tr><td>ctrl+B</td><td>show / hide the sidebar</td></tr>
           <tr><td>ctrl+I</td><td>show / hide the inspector</td></tr>
