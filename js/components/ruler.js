@@ -83,11 +83,11 @@
 
   <div class="ruler-band band-order" :style="{ height: BAND_ORDER + 'px' }">
     <div class="ruler-rail-label">order</div>
-    <div v-for="s in scenes" :key="s.id"
+      <div v-for="s in scenes" :key="s.id"
          class="ruler-scene"
-         :class="{ selected: selection.sceneId === s.id, flash: s.mode !== 'linear' }"
+         :class="{ selected: selection.sceneId === s.id, flash: s.mode !== 'linear', hidden: s.hidden }"
          :style="tickStyle(s)"
-         :title="'scene ' + (s.order + 1) + (s.title ? ': ' + s.title : '')"
+         :title="'scene ' + (s.order + 1) + (s.title ? ': ' + s.title : '') + (s.hidden ? '\\n(hidden event — not shown to the reader)' : '')"
          @click="$emit('select-scene', s.id)">
       <span v-if="zoom >= 26">{{ s.order + 1 }}</span>
     </div>
@@ -104,7 +104,7 @@
       <polyline v-if="curvePoints" :points="curvePoints" class="ruler-curve"></polyline>
       <circle v-for="(p, i) in markers" :key="'m' + i"
               :cx="p.x" :cy="p.y" r="2.6"
-              :class="{ selected: p.selected }"></circle>
+              :class="{ selected: p.selected, hidden: p.hidden }"></circle>
     </svg>
     <div v-else class="ruler-note">no story time set</div>
   </div>
@@ -178,7 +178,8 @@
           out.push({
             x: r * spanW.value,
             y: BAND_MAP_H - 4 - r * (BAND_MAP_H - 8),
-            selected: props.selection.sceneId === s.id
+            selected: props.selection.sceneId === s.id,
+            hidden: !!s.hidden
           });
         });
         return out;

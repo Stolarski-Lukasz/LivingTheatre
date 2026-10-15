@@ -51,7 +51,13 @@ Details that matter in practice:
   with no active presence, which is different from someone who is simply
   described. A comma in `Dom – kuchnia` splits place and room.
 - **`[Title]` hides the scene.** Used for author-only events the reader never
-  sees; they stay in the matrix and in analytics.
+  sees; they stay in the matrix and in analytics. The marker sits on the
+  *Scenes* row only: the column header is hatched with its title dimmed and
+  italic, and an outlined `H` badge — deliberately not the flat fill used for
+  "present, idle", because hidden is a different kind of absence. In the
+  ruler, a hidden scene's tick number is struck through and its story-time
+  marker is hollow. Body cells keep their clean presence colouring. Set or
+  clear the flag from the inspector's *hidden event* checkbox.
 - **Labels are matched loosely**, so a typo like `Perspekrywa` still resolves.
 
 ## The interface
@@ -82,8 +88,12 @@ Details that matter in practice:
   and *when* (the story-time axis itself, proportionally ticked at chapter
   boundaries and range ends). A connector that jumps backwards is a flashback;
   the dashed ones are exactly that.
-- **Strips** — the perspective, place and story-time rows under the character
-  tracks. Toggle them from the toolbar. A text filter dims non-matching cells.
+- **Strips first** — perspective, place and story time sit directly under
+  the scene headers, above the character tracks. Double-click a strip cell
+  to edit it in place: perspective opens a picker of characters plus
+  *narrator*, place and story time are text fields. They are scene
+  attributes, so committing one patches the scene — the same as the
+  inspector's Scene tab.
 - **Inspector** — two tabs, *Scene* and *Cell*, both always reachable: the
   scene tab holds title, story time, mode + anchor, chapter, perspective,
   place, hidden flag and summary; the cell tab holds presence, diegetic prose
@@ -102,6 +112,7 @@ Details that matter in practice:
 | click cell / scene header | select |
 | alt+click cell | cycle presence |
 | double-click cell | edit what the character does |
+| double-click strip cell | edit perspective / place / story time |
 | drag scene header | reorder the presentation |
 | double-click track name | rename a character |
 | ctrl+B | show / hide the sidebar |

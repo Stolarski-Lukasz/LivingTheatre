@@ -22,7 +22,7 @@
     project: model.createProject(),
     projectId: null,
     library: [],
-    selection: { sceneId: null, entityId: null },
+    selection: { sceneId: null, entityId: null, kind: null },
     zoom: 56,
     railOpen: true,
     railW: 232,
@@ -255,7 +255,7 @@
     pushHistory();
     state.project = model.createProject({ meta: { title: title || 'Untitled story' } });
     state.projectId = null;
-    state.selection = { sceneId: null, entityId: null };
+    state.selection = { sceneId: null, entityId: null, kind: null };
     persist();
     return state.project;
   }
@@ -267,7 +267,7 @@
     pushHistory();
     state.project = model.migrate(entry);
     state.projectId = state.project.meta.id;
-    state.selection = { sceneId: null, entityId: null };
+    state.selection = { sceneId: null, entityId: null, kind: null };
     persist();
     return state.project;
   }
@@ -294,7 +294,7 @@
     state.project = model.migrate(parsed);
     state.project.meta.id = model.uid('prj');
     state.projectId = state.project.meta.id;
-    state.selection = { sceneId: null, entityId: null };
+    state.selection = { sceneId: null, entityId: null, kind: null };
     persist();
     notice('Imported "' + state.project.meta.title + '".', 'ok');
     return state.project;
@@ -465,7 +465,7 @@
         if (!characterByName(s.pov)) addCharacter({ name: s.pov });
       }
       p.scenes.push(s);
-      state.selection.sceneId = s.id;
+      selectScene(s.id);
       return s;
     });
   }
@@ -492,7 +492,7 @@
         return l.fromSceneId !== id && l.toSceneId !== id;
       });
       reindexOrders();
-      if (state.selection.sceneId === id) state.selection.sceneId = null;
+      if (state.selection.sceneId === id) selectScene(null);
     });
   }
 
@@ -623,13 +623,36 @@
   }
 
   /* ---------- selection & ui ---------- */
+  /* kind records what was last clicked: 'cell' opens the inspector on the
+     Cell tab, 'scene' on the Scene tab — a scene header or a strip cell
+     must never inherit the Cell tab just because a character is still
+     selected. */
   function select(sceneId, entityId) {
-    state.selection.sceneId = sceneId === undefined ? state.selection.sceneId : sceneId;
-    state.selection.entityId = entityId === undefined ? state.selection.entityId : entityId;
+    state.selection = {
+      sceneId: sceneId === undefined ? null : sceneId,
+      entityId: entityId === undefined ? null : entityId,
+      kind: entityId ? 'cell' : 'scene'
+    };
   }
 
   function selectCell(sceneId, entityId) {
-    state.selection = { sceneId: sceneId, entityId: entityId };
+    state.selection = {
+      sceneId: sceneId,
+      entityId: entityId,
+      kind: entityId ? 'cell' : 'scene'
+    };
+  }
+
+  function selectScene(sceneId) {
+    if (sceneId === null || sceneId === undefined) {
+      state.selection = { sceneId: null, entityId: null, kind: 'scene' };
+      return;
+    }
+    state.selection = {
+      sceneId: sceneId,
+      entityId: state.selection.entityId,
+      kind: 'scene'
+    };
   }
 
   function setZoom(level) {
@@ -690,6 +713,7 @@
 
       select: select,
       selectCell: selectCell,
+      selectScene: selectScene,
       setZoom: setZoom,
       setRailOpen: setRailOpen,
       toggleRail: toggleRail,

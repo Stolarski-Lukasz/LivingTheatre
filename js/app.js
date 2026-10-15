@@ -101,8 +101,14 @@
       }
 
       function onSelectScene(sceneId) {
-        s.selection.sceneId = sceneId;
+        a.selectScene(sceneId);
         if (sceneId) scrollSceneIntoView(sceneId);
+      }
+
+      function onPatchScene(payload) {
+        if (payload && payload.sceneId) {
+          a.updateScene(payload.sceneId, payload.patch || {});
+        }
       }
 
       function onSelectCell(payload) {
@@ -110,7 +116,7 @@
       }
 
       function onSelectEntity(entityId) {
-        s.selection.entityId = entityId;
+        a.selectCell(s.selection.sceneId, entityId);
       }
 
       function onCycleCell(payload) {
@@ -128,7 +134,7 @@
       }
 
       function onMinimapJump(sceneId) {
-        s.selection.sceneId = sceneId;
+        a.selectScene(sceneId);
         scrollSceneIntoView(sceneId);
       }
 
@@ -138,7 +144,7 @@
 
       function onJumpReport(sceneId) {
         if (!sceneId) return;
-        s.selection.sceneId = sceneId;
+        a.selectScene(sceneId);
         scrollSceneIntoView(sceneId);
       }
 
@@ -157,7 +163,7 @@
           if (scenes[k].id === s.selection.sceneId) { i = k; break; }
         }
         var next = Math.max(0, Math.min(scenes.length - 1, i + delta));
-        s.selection.sceneId = scenes[next].id;
+        a.selectScene(scenes[next].id);
         scrollSceneIntoView(scenes[next].id);
       }
 
@@ -169,7 +175,7 @@
           if (chars[k].id === s.selection.entityId) { i = k; break; }
         }
         var next = Math.max(0, Math.min(chars.length - 1, i + delta));
-        s.selection.entityId = chars[next].id;
+        a.selectCell(s.selection.sceneId, chars[next].id);
       }
 
       /* ---------- inspector actions ---------- */
@@ -529,6 +535,7 @@
         selectedCell: selectedCell,
 
         onSelectScene: onSelectScene,
+        onPatchScene: onPatchScene,
         onSelectCell: onSelectCell,
         onSelectEntity: onSelectEntity,
         onCycleCell: onCycleCell,
@@ -648,6 +655,7 @@
       @rename-character="renameCharacter"
       @remove-character="removeCharacter"
       @cycle-color="cycleColor"
+      @patch-scene="onPatchScene"
       @drop-scene="onDropScene"
       @viewport="onViewport" />
 

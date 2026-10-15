@@ -147,8 +147,14 @@
       var emit = ctx.emit;
       var tab = Vue.ref('scene');
 
-      Vue.watch(function () { return props.scene && props.scene.id; }, function () {
-        tab.value = props.entity ? 'cell' : 'scene';
+      /* The tab follows the selection kind: a character cell opens Cell,
+         a scene header or a strip cell opens Scene — even when a character
+         is still selected from before. */
+      Vue.watch(function () {
+        return (props.selection && props.selection.kind) + ':' + (props.scene && props.scene.id);
+      }, function () {
+        tab.value = (props.selection && props.selection.kind === 'cell' && props.entity)
+          ? 'cell' : 'scene';
       });
 
       var modes = model.SCENE_MODES;

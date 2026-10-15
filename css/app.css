@@ -418,6 +418,19 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
 .m-colhead.selected { box-shadow: inset -1px 0 0 var(--line), inset 0 -2px 0 var(--accent); }
 .m-colhead.dragging { opacity: 0.5; }
 
+/* hidden events — the marker lives on the Scenes row: the column header is
+   hatched and its title dimmed, so the body cells keep clean presence
+   colouring and never read as "present, idle" */
+.m-colhead.hiddencol {
+  background-image: repeating-linear-gradient(-45deg,
+    transparent 0 6px,
+    color-mix(in srgb, var(--line-strong) 65%, transparent) 6px 12px);
+}
+.m-colhead.hiddencol .ch-title { color: var(--faint); font-style: italic; }
+.m-colhead.hiddencol .ch-no,
+.m-colhead.hiddencol .ch-time,
+.m-colhead.hiddencol .ch-chapter { color: var(--faint); }
+
 .ch-line {
   display: flex;
   align-items: center;
@@ -448,7 +461,11 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
   font-weight: 800;
   flex: none;
 }
-.ch-flag.hidden { background: var(--bg3); color: var(--dim); }
+.ch-flag.hidden {
+  background: transparent;
+  color: var(--warn);
+  box-shadow: inset 0 0 0 1px var(--warn);
+}
 
 .ch-title {
   font-size: 11px;
@@ -629,12 +646,30 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
 .m-strip.selected { box-shadow: inset 0 0 0 2px var(--ink), inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line); z-index: 2; }
 .m-strip.empty { color: var(--faint); opacity: 0.5; }
 .m-strip.nonlinear { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--ink); }
-.m-strip.hidden-mark { opacity: 0.55; }
+
 .strip-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+
+/* inline strip editors (POV / place / story time) — they expand past the
+   column width so remain legible even at narrow zoom */
+.strip-input {
+  position: absolute;
+  inset: 0;
+  width: max(100%, 150px);
+  min-width: 150px;
+  border: 0;
+  border-radius: 0;
+  padding: 0 5px;
+  background: var(--bg1);
+  color: var(--ink);
+  font-size: 11px;
+  outline: 1px solid var(--accent);
+  z-index: 6;
+  cursor: text;
 }
 
 /* ---------- ruler ---------- */
@@ -684,6 +719,8 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
 .ruler-scene:hover { background: var(--bg2); color: var(--dim); }
 .ruler-scene.selected { background: var(--accent); color: #fff; }
 .ruler-scene.flash { background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.ruler-scene.hidden { color: var(--faint); }
+.ruler-scene.hidden span { text-decoration: line-through; }
 
 .ruler-svg { position: absolute; top: 0; pointer-events: none; overflow: visible; }
 .ruler-svg line { stroke: var(--line-strong); stroke-width: 1; }
@@ -691,6 +728,7 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
 .ruler-curve { fill: none; stroke: var(--accent); stroke-width: 1.4; opacity: 0.85; }
 .ruler-svg circle { fill: var(--accent); }
 .ruler-svg circle.selected { fill: var(--ink); }
+.ruler-svg circle.hidden { fill: var(--bg1); stroke: var(--faint); stroke-width: 1.2; }
 
 .ruler-note {
   position: absolute;

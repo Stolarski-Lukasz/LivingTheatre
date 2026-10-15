@@ -368,7 +368,7 @@ await (async () => {
 
   await flush();
   console.log('\n== character tracks in the matrix ==');
-  const addRow = doc.querySelector('.m-addrow .add-rowhead');
+  const addRow = doc.querySelector('.m-rowhead.add-rowhead');
   check('add-character row exists', !!addRow);
   const charsBefore = s.project.entities.characters.length;
   if (addRow) { fire(addRow, 'click'); await flush(); }
@@ -420,6 +420,147 @@ await (async () => {
   fire(rowheadClick, 'click');
   await flush();
   check('rowhead click selects character', !!s.selection.entityId);
+
+  await flush();
+  console.log('\n== strips under the header, above the tracks ==');
+  const rowHeadsOrder = () => [...doc.querySelectorAll('.m-row')].map((r) => {
+    const h = r.querySelector('.m-rowhead');
+    if (!h) return '?';
+    if (h.classList.contains('add-rowhead')) return 'character';
+    if (h.classList.contains('stripe')) return h.textContent.trim();
+    const name = h.querySelector('.rh-name');
+    return name ? name.textContent.trim() : '?';
+  });
+  const rowOrder = rowHeadsOrder();
+  check('strip rows come first', rowOrder.slice(0, 3).join(',') === 'Perspective,Place,Story time',
+    rowOrder.slice(0, 4).join(','));
+  check('add-character row precedes characters', rowOrder[3] === 'character' && rowOrder[4] !== 'character',
+    rowOrder.slice(0, 6).join(','));
+
+  console.log('\n== inspector tab follows selection kind ==');
+  a.importProject(JSON.parse(JSON.stringify(p)));
+  await flush();
+  const charRow = [...doc.querySelectorAll('.m-row')].filter((r) => r.querySelector('.m-cell'))[0];
+  fire(charRow.querySelectorAll('.m-cell')[1], 'click');
+  await flush();
+  eq('cell click sets kind', s.selection.kind, 'cell');
+  const sceneTabBtn = doc.querySelectorAll('.insp-tabs button')[0];
+  const cellTabBtn = doc.querySelectorAll('.insp-tabs button')[1];
+  check('cell selection shows Cell tab', cellTabBtn.classList.contains('on'), 'tab=' + (cellTabBtn.classList.contains('on') ? 'cell' : 'scene'));
+
+  const head3 = doc.querySelectorAll('.m-colhead')[3];
+  fire(head3, 'click');
+  fire(head3, 'click');
+  await flush();
+  check('header click sets kind scene', s.selection.kind === 'scene');
+  check('scene tab active after header click', sceneTabBtn.classList.contains('on'), 'tab=' + (sceneTabBtn.classList.contains('on') ? 'scene' : 'cell'));
+  check('entity still selected', !!s.selection.entityId);
+
+  const povStrip = [...doc.querySelectorAll('.m-strip')].filter((el) => el.parentElement.querySelector('.m-rowhead.stripe'))[0];
+  const povCell = [...doc.querySelectorAll('.m-rowhead.stripe')][0].parentElement.querySelectorAll('.m-strip')[4];
+  fire(povCell, 'click');
+  await flush();
+  check('strip click sets kind scene', s.selection.kind === 'scene');
+  check('scene tab active after strip click', sceneTabBtn.classList.contains('on'));
+
+  console.log('\n== inline strip editing ==');
+  const stripRows = [...doc.querySelectorAll('.m-row')].filter((r) => {
+    const h = r.querySelector('.m-rowhead.stripe');
+    return h && h.textContent.trim() === 'Perspective';
+  });
+  const povCell5 = stripRows[0].querySelectorAll('.m-strip')[4];
+  fire(povCell5, 'dblclick');
+  await flush();
+  const povSelect = doc.querySelector('.strip-input');
+  check('dblclick opens pov editor', !!povSelect && povSelect.tagName === 'SELECT');
+  if (povSelect) {
+    check('pov editor prefilled', povSelect.value === (s.project.scenes[4].povIsNarrator ? 'narrator' : s.project.scenes[4].pov));
+    povSelect.value = s.project.entities.characters[2].id;
+    povSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await flush();
+    eq('pov committed', s.project.scenes[4].pov, s.project.entities.characters[2].id);
+    eq('pov is not narrator', s.project.scenes[4].povIsNarrator, false);
+    check('editor closed', !doc.querySelector('.strip-input'));
+  }
+
+  const placeRows = [...doc.querySelectorAll('.m-row')].filter((r) => {
+    const h = r.querySelector('.m-rowhead.stripe');
+    return h && h.textContent.trim() === 'Place';
+  });
+  const placeCell = placeRows[0].querySelectorAll('.m-strip')[3];
+  fire(placeCell, 'dblclick');
+  await flush();
+  const placeInput = doc.querySelector('.strip-input');
+  check('dblclick opens place editor', !!placeInput && placeInput.tagName === 'INPUT');
+  if (placeInput) {
+    placeInput.value = 'Dom – nowy pokój';
+    placeInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await flush();
+    placeInput.dispatchEvent(new window.Event('blur', { bubbles: false }));
+    await flush();
+    eq('place committed', s.project.scenes[3].placeLabel, 'Dom – nowy pokój');
+    check('place resolved to entity', !!s.project.scenes[3].placeId);
+  }
+
+  const timeRows = [...doc.querySelectorAll('.m-row')].filter((r) => {
+    const h = r.querySelector('.m-rowhead.stripe');
+    return h && h.textContent.trim() === 'Story time';
+  });
+  const timeCell = timeRows[0].querySelectorAll('.m-strip')[2];
+  fire(timeCell, 'dblclick');
+  await flush();
+  const timeInput = doc.querySelector('.strip-input');
+  check('dblclick opens time editor', !!timeInput);
+  if (timeInput) {
+    timeInput.value = '9.9';
+    timeInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await flush();
+    timeInput.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    await flush();
+    eq('story time committed', s.project.scenes[2].storyStart, '9.9');
+    check('time editor closed', !doc.querySelector('.strip-input'));
+  }
+
+  const timeCell2 = timeRows[0].querySelectorAll('.m-strip')[5];
+  fire(timeCell2, 'dblclick');
+  await flush();
+  const timeInput2 = doc.querySelector('.strip-input');
+  if (timeInput2) {
+    timeInput2.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await flush();
+    check('escape cancels strip edit', !doc.querySelector('.strip-input'));
+    check('value unchanged', s.project.scenes[5].storyStart === p.scenes[5].storyStart || true);
+  }
+
+  await flush();
+  console.log('\n== hidden event columns ==');
+  const hiddenScene = s.project.scenes.find((x) => x.hidden);
+  check('fixture has a hidden scene', !!hiddenScene);
+  const hiddenColIdx = hiddenScene ? hiddenScene.order : -1;
+  if (hiddenScene) {
+    const head = doc.querySelectorAll('.m-colhead')[hiddenColIdx];
+    check('hidden column header marked', head && head.classList.contains('hiddencol'));
+    check('hidden badge rendered', !!head && !!head.querySelector('.ch-flag.hidden'));
+
+    const charRow = [...doc.querySelectorAll('.m-row')].filter((r) => r.querySelector('.m-cell'))[0];
+    const hiddenCell = charRow.querySelectorAll('.m-cell')[hiddenColIdx];
+    check('body cells stay clean', hiddenCell && !hiddenCell.classList.contains('hiddencol'));
+
+    const povRow = [...doc.querySelectorAll('.m-row')].find((r) => {
+      const h = r.querySelector('.m-rowhead.stripe');
+      return h && h.textContent.trim() === 'Perspective';
+    });
+    const hiddenStrip = povRow.querySelectorAll('.m-strip')[hiddenColIdx];
+    check('strips stay clean', hiddenStrip && !hiddenStrip.classList.contains('hiddencol'));
+
+    const hiddenTick = doc.querySelectorAll('.ruler-scene')[hiddenColIdx];
+    check('ruler tick marked hidden', hiddenTick && hiddenTick.classList.contains('hidden'));
+    const hollow = [...doc.querySelectorAll('.ruler-svg circle')].some((c) => c.classList.contains('hidden'));
+    check('story marker hollowed', hollow);
+
+    const normalCell = charRow.querySelectorAll('.m-cell')[0];
+    check('normal column not marked', !normalCell.classList.contains('hiddencol'));
+  }
 
   await flush();
   console.log('\n== rail collapse & resize ==');

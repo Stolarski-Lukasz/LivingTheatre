@@ -88,6 +88,7 @@
         <tbody>
           <tr><td>click cell / scene header</td><td>select</td></tr>
           <tr><td>double-click cell</td><td>write what the character does</td></tr>
+          <tr><td>double-click strip cell</td><td>edit perspective / place / story time</td></tr>
           <tr><td>alt+click cell</td><td>cycle presence · absent → idle → active</td></tr>
           <tr><td>drag scene header</td><td>reorder the presentation</td></tr>
           <tr><td>double-click track name</td><td>rename a character</td></tr>

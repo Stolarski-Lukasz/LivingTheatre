@@ -273,7 +273,7 @@ const railBefore = await page.evaluate(() => ({
   stageW: document.querySelector('.stage').getBoundingClientRect().width,
   sceneRows: document.querySelectorAll('.rail .scene-no').length,
   hasCharSection: [...document.querySelectorAll('.rail-head')].some((h) => /characters/i.test(h.textContent)),
-  addRow: !!document.querySelector('.m-addrow'),
+  addRow: !!document.querySelector('.m-rowhead.add-rowhead'),
   charRowheads: document.querySelectorAll('.m-rowhead:not(.stripe):not(.add-rowhead):not(.special)').length
 }));
 check('rail shows scenes only', railBefore.rail && railBefore.sceneRows === 23 && !railBefore.hasCharSection,
@@ -365,6 +365,48 @@ await page.evaluate(() => window.LT.store.actions.setInspectorWidth(344));
 await page.waitForTimeout(100);
 const uiSaved = await page.evaluate(() => JSON.parse(window.localStorage.getItem('livingtheatre.ui.v1') || '{}'));
 check('inspector width persisted', uiSaved.inspectorW === 344, JSON.stringify(uiSaved));
+
+console.log('\n== hidden event columns ==');
+const hid = await page.evaluate(() => {
+  const scene = window.LT.store.state.project.scenes.find((x) => x.hidden);
+  if (!scene) return { found: false };
+  const idx = scene.order;
+  const head = document.querySelectorAll('.m-colhead')[idx];
+  const rows = [...document.querySelectorAll('.m-row')].filter((r) => r.querySelector('.m-cell'));
+  const hiddenCells = rows.map((r) => r.querySelectorAll('.m-cell')[idx]);
+  const filled = hiddenCells.find((c) => window.getComputedStyle(c).backgroundColor !== 'rgba(0, 0, 0, 0)');
+  const cell = hiddenCells[0];
+  const headHatch = window.getComputedStyle(head).backgroundImage;
+  const cellHatch = window.getComputedStyle(cell, '::after').backgroundImage;
+  const normalCell = rows[0].querySelectorAll('.m-cell')[0];
+  const normalHatch = window.getComputedStyle(normalCell, '::after').backgroundImage;
+  const tick = document.querySelectorAll('.ruler-scene')[idx];
+  const tickDecor = window.getComputedStyle(tick.querySelector('span')).textDecorationLine;
+  const hollow = [...document.querySelectorAll('.ruler-svg circle')].some((c) => c.classList.contains('hidden'));
+  return {
+    found: true,
+    headClass: head.classList.contains('hiddencol'),
+    cellClass: cell.classList.contains('hiddencol'),
+    headHatch, cellHatch,
+    filledFill: filled ? window.getComputedStyle(filled).backgroundColor : null,
+    filledHatch: filled ? window.getComputedStyle(filled, '::after').backgroundImage : null,
+    normalHatch: normalHatch,
+    hollow,
+    tickHidden: tick.classList.contains('hidden'),
+    tickDecor
+  };
+});
+check('fixture has a hidden scene', hid.found);
+check('marker on the Scenes row only', hid.headClass && !hid.cellClass,
+  'head=' + hid.headClass + ' cell=' + hid.cellClass);
+check('header hatched', /repeating-linear-gradient/.test(hid.headHatch), hid.headHatch);
+check('body cells carry no hatch', hid.cellHatch === 'none', hid.cellHatch);
+check('normal cells not hatched', hid.normalHatch === 'none', hid.normalHatch);
+check('presence fill survives in hidden column', !!hid.filledFill && hid.filledHatch === 'none',
+  hid.filledFill + ' / ' + hid.filledHatch);
+check('ruler tick struck through', hid.tickHidden && /line-through/.test(hid.tickDecor), hid.tickDecor);
+check('story marker hollowed', hid.hollow);
+await page.screenshot({ path: path.join(shots, '20-hidden-column.png') });
 
 console.log('\n== persistence & reload ==');
 await page.evaluate(() => window.LT.store.actions.persist());

@@ -30,7 +30,7 @@
     },
     emits: ['select-scene', 'select-cell', 'select-entity', 'cycle-cell', 'edit-cell',
             'add-character', 'rename-character', 'remove-character', 'cycle-color',
-            'drop-scene', 'viewport'],
+            'patch-scene', 'drop-scene', 'viewport'],
 
     components: {
       LtRuler: LT.components.Ruler
@@ -47,7 +47,7 @@
       </div>
       <div v-for="s in scenes" :key="s.id"
            class="m-colhead"
-           :class="{ selected: selection.sceneId === s.id, dragging: drag.sceneId === s.id }"
+           :class="{ selected: selection.sceneId === s.id, dragging: drag.sceneId === s.id, hiddencol: s.hidden }"
            :style="colStyle"
            :title="colTitle(s)"
            @pointerdown="onHeadDown($event, s)"
@@ -66,16 +66,12 @@
       <div v-if="drag.active" class="m-dropline" :style="dropStyle"></div>
     </div>
 
-    <div class="m-row m-addrow">
-      <div class="m-rowhead add-rowhead" title="Add a character"
+    <div v-for="row in rows" :key="row.key" class="m-row" :style="rowStyle(row)">
+      <div v-if="row.kind === 'add'" class="m-rowhead add-rowhead" title="Add a character"
            @click="$emit('add-character')">
         <span class="add-plus">+</span><span>character</span>
       </div>
-      <div class="m-addcell" :style="cellStyle"></div>
-    </div>
-
-    <div v-for="row in rows" :key="row.key" class="m-row" :style="rowStyle(row)">
-      <div class="m-rowhead" :class="[row.headClass, { selected: isEntitySelected(row) }]"
+      <div v-else class="m-rowhead" :class="[row.headClass, { selected: isEntitySelected(row) }]"
            @click="onRowheadClick(row)"
            @dblclick="onRowheadDblClick(row)">
         <span v-if="row.color" class="swatch" :style="{ background: row.color }"></span>
@@ -98,7 +94,9 @@
       </div>
 
       <template v-for="s in scenes" :key="s.id">
-        <div v-if="row.kind === 'character'"
+        <div v-if="row.kind === 'add'" class="m-addcell" :style="cellStyle"></div>
+
+        <div v-else-if="row.kind === 'character'"
              class="m-cell"
              :class="cellClass(row, s)"
              :style="cellStyle"
@@ -120,8 +118,26 @@
              :class="stripClass(row, s)"
              :style="[cellStyle, stripStyle(row, s)]"
              :title="stripTitle(row, s)"
-             @click="$emit('select-scene', s.id)">
-          <span class="strip-text">{{ stripLabel(row, s) }}</span>
+             @click="$emit('select-scene', s.id)"
+             @dblclick="onStripDblClick(row, s)">
+          <template v-if="stripEdit.key === row.key + ':' + s.id">
+            <select v-if="row.kind === 'pov'" class="strip-input"
+                    v-model="stripEdit.value"
+                    @change="commitStripEdit"
+                    @blur="commitStripEdit"
+                    @keydown.esc.prevent="cancelStripEdit"
+                    @keydown.stop>
+              <option value="narrator">narrator</option>
+              <option v-for="c in characters" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+            <input v-else class="strip-input" ref="stripEditor"
+                   v-model="stripEdit.value"
+                   @blur="commitStripEdit"
+                   @keydown.enter.prevent="commitStripEdit"
+                   @keydown.esc.prevent="cancelStripEdit"
+                   @keydown.stop>
+          </template>
+          <span v-else class="strip-text">{{ stripLabel(row, s) }}</span>
         </div>
       </template>
     </div>
@@ -140,6 +156,7 @@
       var scroller = Vue.ref(null);
       var editing = Vue.reactive({ sceneId: null, entityId: null, value: '' });
       var renaming = Vue.reactive({ key: null, entityId: null, value: '' });
+      var stripEdit = Vue.reactive({ key: null, kind: null, sceneId: null, value: '' });
       var drag = Vue.reactive({
         active: false, sceneId: null, from: -1, to: -1, startX: 0, suppressClick: false
       });
@@ -163,9 +180,21 @@
         return { '--c': row.color || 'var(--c-line-strong)' };
       };
 
-      /* ---------- rows ---------- */
+      /* ---------- rows ----------
+         Order: the scene-level strips sit directly under the scene headers,
+         then the + character row, then one row per character. */
       var rows = Vue.computed(function () {
         var list = [];
+        if (props.showPov) {
+          list.push({ key: 'strip:pov', kind: 'pov', label: 'Perspective', headClass: 'stripe', tip: 'Perspective — double-click a cell to edit' });
+        }
+        if (props.showPlaces) {
+          list.push({ key: 'strip:place', kind: 'place', label: 'Place', headClass: 'stripe', tip: 'Place — double-click a cell to edit' });
+        }
+        if (props.showTime) {
+          list.push({ key: 'strip:time', kind: 'time', label: 'Story time', headClass: 'stripe', tip: 'Story time — double-click a cell to edit' });
+        }
+        list.push({ key: 'addchar', kind: 'add', label: 'character', headClass: 'add-head', tip: 'Add a character' });
         props.characters.forEach(function (c) {
           var active = 0;
           props.scenes.forEach(function (s) {
@@ -183,26 +212,6 @@
             headClass: c.status === 'mentioned' ? 'offstage' : ''
           });
         });
-        if (!props.characters.length) {
-          list.push({
-            key: 'nochars',
-            kind: 'none',
-            label: 'no characters',
-            tip: 'Use the + character row above the tracks.',
-            color: '',
-            badge: '',
-            headClass: 'special'
-          });
-        }
-        if (props.showPov) {
-          list.push({ key: 'strip:pov', kind: 'pov', label: 'Perspective', headClass: 'stripe' });
-        }
-        if (props.showPlaces) {
-          list.push({ key: 'strip:place', kind: 'place', label: 'Place', headClass: 'stripe' });
-        }
-        if (props.showTime) {
-          list.push({ key: 'strip:time', kind: 'time', label: 'Story time', headClass: 'stripe' });
-        }
         return list;
       });
 
@@ -287,7 +296,6 @@
         var cls = [];
         if (props.selection.sceneId === s.id) cls.push('selected');
         if (row.kind === 'time' && s.mode !== 'linear') cls.push('nonlinear');
-        if (row.kind === 'time' && s.hidden) cls.push('hidden-mark');
         if (!stripLabel(row, s)) cls.push('empty');
         return cls.join(' ');
       }
@@ -434,6 +442,63 @@
         renaming.value = '';
       }
 
+      /* ---------- strip editing ---------- */
+      /* Perspective, place and story time are scene attributes: editing them
+         in the strip patches the scene, exactly like the inspector does. */
+      function onStripDblClick(row, s) {
+        stripEdit.key = row.key + ':' + s.id;
+        stripEdit.kind = row.kind;
+        stripEdit.sceneId = s.id;
+        stripEdit.value = stripEditValue(row, s);
+        emit('select-scene', s.id);
+        Vue.nextTick(function () {
+          var el = scroller.value && scroller.value.querySelector('.strip-input');
+          if (el) {
+            el.focus();
+            if (el.select) el.select();
+          }
+        });
+      }
+
+      function stripEditValue(row, s) {
+        if (row.kind === 'pov') {
+          return s.povIsNarrator || !s.pov ? 'narrator' : s.pov;
+        }
+        if (row.kind === 'place') return placeName(s);
+        return s.storyStart || '';
+      }
+
+      function commitStripEdit() {
+        var kind = stripEdit.kind;
+        var sceneId = stripEdit.sceneId;
+        var value = String(stripEdit.value === undefined || stripEdit.value === null ? '' : stripEdit.value).trim();
+        stripEdit.key = null;
+        stripEdit.kind = null;
+        stripEdit.sceneId = null;
+        stripEdit.value = '';
+        if (!sceneId) return;
+
+        if (kind === 'pov') {
+          emit('patch-scene', {
+            sceneId: sceneId,
+            patch: (!value || value === 'narrator')
+              ? { pov: null, povIsNarrator: true }
+              : { pov: value, povIsNarrator: false }
+          });
+        } else if (kind === 'place') {
+          emit('patch-scene', { sceneId: sceneId, patch: { placeLabel: value } });
+        } else if (kind === 'time') {
+          emit('patch-scene', { sceneId: sceneId, patch: { storyStart: value } });
+        }
+      }
+
+      function cancelStripEdit() {
+        stripEdit.key = null;
+        stripEdit.kind = null;
+        stripEdit.sceneId = null;
+        stripEdit.value = '';
+      }
+
       /* ---------- cells ---------- */
       function onCellClick(e, row, s) {
         if (e.altKey) {
@@ -508,6 +573,10 @@
         scroller: scroller,
         editing: editing,
         renaming: renaming,
+        stripEdit: stripEdit,
+        onStripDblClick: onStripDblClick,
+        commitStripEdit: commitStripEdit,
+        cancelStripEdit: cancelStripEdit,
         drag: drag,
         canvasStyle: canvasStyle,
         colStyle: colStyle,
