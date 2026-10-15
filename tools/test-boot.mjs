@@ -200,7 +200,26 @@ await (async () => {
     'rows=' + window.document.querySelectorAll('.rail .scene-no').length);
   check('rail has no character list', window.document.querySelectorAll('.rail .rail-head').length === 2,
     'sections=' + window.document.querySelectorAll('.rail .rail-head').length);
-  check('inspector tabs', window.document.querySelectorAll('.insp-tabs button').length === 4);
+  check('rail lists every chapter',
+    window.document.querySelectorAll('.rail .chapter-row').length === s.project.chapters.length,
+    'chapters=' + window.document.querySelectorAll('.rail .chapter-row').length);
+  check('rail groups scenes under chapters',
+    window.document.querySelectorAll('.rail .sub-row').length === 23,
+    'rows=' + window.document.querySelectorAll('.rail .sub-row').length);
+  check('no ungrouped bucket on the sample',
+    window.document.querySelectorAll('.rail .track-row.static').length === 0);
+  check('matrix chapter band',
+    window.document.querySelectorAll('.m-chapterrow .m-chapterblock').length === s.project.chapters.length,
+    'blocks=' + window.document.querySelectorAll('.m-chapterrow .m-chapterblock').length);
+  check('band spans the whole canvas',
+    [...window.document.querySelectorAll('.m-chapterblock')].reduce(function (n, el) {
+      return n + parseFloat(el.style.width);
+    }, 0) === 23 * 56,
+    'span=' + [...window.document.querySelectorAll('.m-chapterblock')].reduce(function (n, el) {
+      return n + parseFloat(el.style.width);
+    }, 0));
+  check('inspector tabs', window.document.querySelectorAll('.insp-tabs button').length === 5,
+    'n=' + window.document.querySelectorAll('.insp-tabs button').length);
   check('statusbar', !!window.document.querySelector('.statusbar'));
   check('minimap', window.document.querySelectorAll('.mm-tick').length === 23);
 
@@ -296,15 +315,16 @@ await (async () => {
 
   /* inspector: cell tab reachable after scene-only selection */
   const tabs = doc.querySelectorAll('.insp-tabs button');
-  fire(tabs[2], 'click');
+  fire(tabs[3], 'click');
   await flush();
   check('cell tab renders presence picker', !!doc.querySelector('.presence-picker'));
   fire(tabs[0], 'click');
   await flush();
-  check('scene tab renders fields', !!doc.querySelectorAll('.insp-section .insp-input').length);
+  check('scene tab renders fields', doc.querySelectorAll('.insp-section .insp-input').length > 3,
+    'fields=' + doc.querySelectorAll('.insp-section .insp-input').length);
 
   /* presence picker writes through */
-  fire(doc.querySelectorAll('.insp-tabs button')[2], 'click');
+  fire(doc.querySelectorAll('.insp-tabs button')[3], 'click');
   await flush();
   const pickButtons = doc.querySelectorAll('.presence-picker button');
   fire(pickButtons[2], 'click');
@@ -367,6 +387,287 @@ await (async () => {
   check('escape clears selection', s.selection.sceneId === null && s.selection.entityId === null);
 
   await flush();
+  await flush();
+  console.log('\n== chapters as units ==');
+  a.importProject(JSON.parse(JSON.stringify(p)));
+  await flush();
+
+  /* a new project gets one chapter named after the work's own term */
+  a.newProject('units');
+  a.addScene({ title: 'first' });
+  eq('first chapter is named Chapter 1', s.project.chapters.length === 1 &&
+    s.project.chapters[0].title, 'Chapter 1');
+  check('new scene joins it', s.project.scenes[0].chapterId === s.project.chapters[0].id);
+  a.addScene({ title: 'second' });
+  eq('and so does the next', s.project.scenes[1].chapterId, s.project.chapters[0].id);
+
+  /* the term is the project's business */
+  a.setUnitLabel('Akt');
+  eq('label stored', s.project.meta.unitLabel, 'Akt');
+  eq('derived label', LT.store.derived.value.unitLabel, 'Akt');
+  eq('default chapter renamed with it', s.project.chapters[0].title, 'Akt 1');
+  const extraChapter = a.addChapter();
+  eq('new chapter follows the term', extraChapter.title, 'Akt 2');
+  a.setUnitLabel('');
+  eq('empty label falls back', LT.store.derived.value.unitLabel, 'Chapter');
+  a.setUnitLabel('Chapter');
+  eq('label back', LT.store.derived.value.unitLabel, 'Chapter');
+
+  /* add, move, delete — scenes are never lost */
+  a.importProject(JSON.parse(JSON.stringify(p)));
+  await flush();
+  const groupsOf = function () {
+    return LT.store.derived.value.chapterGroups.map(function (g) {
+      return g.title + ':' + g.count;
+    }).join(' | ');
+  };
+  const fixtureGroups = groupsOf();
+  eq('every fixture chapter is a group', fixtureGroups.split('|').length, p.chapters.length);
+  check('each group counts its scenes',
+    fixtureGroups.split('|').every(function (g) { return /:\d+$/.test(g.trim()); }), fixtureGroups);
+  a.addScene({ title: 'in chapter 2', chapterId: s.project.chapters[1].id });
+  check('scene lands in the chosen chapter',
+    s.project.scenes[s.project.scenes.length - 1].chapterId === s.project.chapters[1].id);
+  a.removeScene(s.project.scenes[s.project.scenes.length - 1].id);
+
+  const chToKill = s.project.chapters[0].id;
+  const chapterTotal = s.project.chapters.length;
+  const orphanCount = s.project.scenes.filter(function (x) { return x.chapterId === chToKill; }).length;
+  a.removeChapter(chToKill);
+  eq('chapter removed', s.project.chapters.length, chapterTotal - 1);
+  eq('its scenes survive ungrouped',
+    s.project.scenes.filter(function (x) { return x.chapterId === null; }).length, orphanCount);
+  check('ungrouped bucket in the rail', LT.store.derived.value.unassignedScenes.length === orphanCount);
+  a.undo();
+  eq('undo restores the chapter', s.project.chapters.length, chapterTotal);
+  eq('undo restores its scenes',
+    s.project.scenes.filter(function (x) { return x.chapterId === chToKill; }).length, orphanCount);
+  a.redo();
+  eq('redo removes again',
+    s.project.scenes.filter(function (x) { return x.chapterId === null; }).length, orphanCount);
+
+  /* moving a chapter moves its whole block */
+  a.importProject(JSON.parse(JSON.stringify(p)));
+  await flush();
+  const chapterOrderBefore = s.project.scenes.map(function (x) { return x.chapterId; }).join(',');
+  const firstChapter = LT.store.derived.value.chapterGroups[0];
+  const secondChapter = LT.store.derived.value.chapterGroups[1];
+  check('moveChapter swaps the blocks', a.moveChapter(firstChapter.id, 1));
+  const chapterOrderAfter = s.project.scenes.map(function (x) { return x.chapterId; }).join(',');
+  check('chapter blocks transposed', chapterOrderBefore !== chapterOrderAfter, chapterOrderAfter.slice(0, 40));
+  const blockScenes = s.project.scenes.filter(function (x) { return x.chapterId === secondChapter.id; });
+  check('moved chapter still owns its scenes', blockScenes.length === secondChapter.count);
+  check('its scenes are contiguous',
+    blockScenes.every(function (x, i, arr) {
+      return i === 0 || arr[i - 1].order === x.order - 1;
+    }), blockScenes.map(function (x) { return x.order; }).join(','));
+  check('orders reindexed', s.project.scenes.every(function (x, i) { return x.order === i; }));
+  a.undo();
+  a.undo(); a.undo();
+  eq('undo puts the block back', s.project.scenes.map(function (x) { return x.chapterId; }).join(','), chapterOrderBefore);
+
+  /* a chapter still carrying a default name is renumbered after the move */
+  a.importProject(JSON.parse(JSON.stringify(LT.demo.build())));
+  await flush();
+  const demoGroups = LT.store.derived.value.chapterGroups;
+  check('demo chapters hold default names',
+    demoGroups.every(function (g) { return g.title === 'Chapter ' + g.unitNo; }),
+    demoGroups.map(function (g) { return g.unitNo + '=' + g.title; }).join('|'));
+  check('move the demo chapter', a.moveChapter(demoGroups[0].id, 1));
+  const afterMove = LT.store.derived.value.chapterGroups;
+  check('default chapter names renumber after the move',
+    afterMove.every(function (g) { return g.title === 'Chapter ' + g.unitNo; }),
+    afterMove.map(function (g) { return g.unitNo + '=' + g.title; }).join('|'));
+  check('a hand-written chapter title is left alone', (function () {
+    a.updateChapter(afterMove[0].id, { title: 'Rozdział 2' });
+    a.moveChapter(afterMove[0].id, -1);
+    return LT.store.derived.value.chapterGroups[0].title === 'Rozdział 2';
+  })());
+
+
+  /* dragging a scene onto another chapter's columns adopts that chapter */
+  a.importProject(JSON.parse(JSON.stringify(p)));
+  await flush();
+  const fromScene = s.project.scenes[0];
+  const targetScene = s.project.scenes[4];
+  check('moveSceneTo adopts the target chapter',
+    a.moveSceneTo(fromScene.id, 4, { chapterId: targetScene.chapterId }));
+  eq('the dragged scene lands at the gap', s.project.scenes[4].id, fromScene.id);
+  eq('the target is pushed right', s.project.scenes[3].id, targetScene.id);
+  eq('scene regrouped', fromScene.chapterId, targetScene.chapterId);
+  check('the group it left keeps its other scenes',
+    s.project.scenes.filter(function (x) { return x.chapterId === p.scenes[2].chapterId; }).length >= 1);
+
+  /* chapter order follows the scenes, not a parallel field */
+  const scrambled = JSON.parse(JSON.stringify(p));
+  scrambled.chapters = scrambled.chapters.slice().reverse();
+  scrambled.chapters.forEach(function (c, i) { c.order = scrambled.chapters.length - i; });
+  const fixed = LT.model.migrate(scrambled);
+  check('normalize reorders chapters by their scenes',
+    fixed.chapters[0].id === p.chapters[0].id && fixed.chapters[1].id === p.chapters[1].id,
+    fixed.chapters.map(function (c) { return c.title; }).join('|'));
+  check('chapter order rewritten', fixed.chapters.every(function (c, i) { return c.order === i; }));
+
+  const ghost = JSON.parse(JSON.stringify(p));
+  ghost.scenes.forEach(function (x) { x.chapterId = 'no-such-chapter'; });
+  const cleaned = LT.model.migrate(ghost);
+  check('dangling chapterId cleared', cleaned.scenes.every(function (x) { return x.chapterId === null; }));
+
+  /* the rail drives it: click a chapter, add to it, move it */
+  a.importProject(JSON.parse(JSON.stringify(p)));
+  await flush();
+  const chapterCount = s.project.chapters.length;
+  const subRowTotal = doc.querySelectorAll('.rail .sub-row').length;
+  const chapterRows = doc.querySelectorAll('.rail .chapter-row');
+  eq('rail shows one row per chapter', chapterRows.length, chapterCount);
+  fire(chapterRows[1], 'click');
+  await flush();
+  eq('chapter row selects the chapter', s.selection.kind, 'chapter');
+  eq('chapter id selected', s.selection.chapterId, s.project.chapters[1].id);
+  const chapterTabBtn = doc.querySelectorAll('.insp-tabs button')[1];
+  check('chapter tab shown',
+    chapterTabBtn.classList.contains('on') && chapterTabBtn.disabled === false,
+    chapterTabBtn.textContent.trim());
+  const clickedGroup = LT.store.derived.value.chapterGroups.filter(function (g) {
+    return g.id === s.selection.chapterId;
+  })[0];
+  check('chapter tab lists its scenes',
+    new RegExp(clickedGroup.count + ' scene').test(doc.querySelector('.insp-section').textContent),
+    doc.querySelector('.insp-section').textContent.slice(0, 120));
+  const addHere = [...doc.querySelectorAll('.insp-actions .btn')].find(function (b) {
+    return /new scene here/.test(b.textContent);
+  });
+  check('chapter tab offers a new scene', !!addHere);
+  if (addHere) {
+    fire(addHere, 'click');
+    await flush();
+    eq('scene added to the chapter',
+      s.project.scenes[s.project.scenes.length - 1].chapterId, s.project.chapters[1].id);
+  }
+  const unitField = [...doc.querySelectorAll('.insp-section .insp-input')].filter(function (el) {
+    return (el.getAttribute('title') || '').indexOf('Chapter, Act, Part') !== -1;
+  })[0];
+  if (unitField) {
+    unitField.value = 'Part';
+    unitField.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await flush();
+    eq('unit renamed from the inspector', s.project.meta.unitLabel, 'Part');
+  }
+  a.setUnitLabel('Chapter');
+  await flush();
+
+  /* renaming a chapter in the rail writes through */
+  const rowName = doc.querySelectorAll('.rail .chapter-row')[2].querySelector('.track-name');
+  fire(rowName, 'dblclick');
+  await flush();
+  const renameInput = doc.querySelector('.rail input.track-name');
+  check('chapter rename opens', renameInput && renameInput.tagName === 'INPUT');
+  if (renameInput) {
+    renameInput.value = 'Coda';
+    renameInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await flush();
+    renameInput.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    await flush();
+    check('chapter renamed', s.project.chapters[2].title === 'Coda', s.project.chapters[2].title);
+  }
+
+  /* the scene tab's chapter select can start a new chapter */
+  a.importProject(JSON.parse(JSON.stringify(LT.demo.build())));
+  await flush();
+  a.selectScene(s.project.scenes[1].id);
+  await flush();
+  const pickScene = s.project.scenes[1];
+  const chapterSelect = [...doc.querySelectorAll('.insp-section select.insp-input')].find(function (el) {
+    return [...el.options].some(function (o) { return o.value === '__new'; });
+  });
+  check('scene tab offers "+ new chapter"', !!chapterSelect);
+  if (chapterSelect) {
+    const chapterTotal = s.project.chapters.length;
+    chapterSelect.value = '__new';
+    chapterSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await flush();
+    eq('scene tab creates a chapter', s.project.chapters.length, chapterTotal + 1);
+    const newChapter = s.project.chapters[s.project.chapters.length - 1];
+    eq('the scene steps into it', pickScene.chapterId, newChapter.id);
+    eq('the new chapter is selected', s.selection.chapterId, newChapter.id);
+    eq('the chapter tab opens', doc.querySelectorAll('.insp-tabs button')[1].classList.contains('on'), true);
+    /* back on the Scene tab, the select now points at the chapter it made */
+    fire(doc.querySelectorAll('.insp-tabs button')[0], 'click');
+    await flush();
+    const settled = [...doc.querySelectorAll('.insp-section select.insp-input')].filter(function (el) {
+      return el.value === newChapter.id;
+    });
+    check('the select settles on the new chapter', settled.length === 1,
+      'n=' + settled.length);
+    check('the rail shows the new chapter',
+      doc.querySelectorAll('.rail .chapter-row').length === s.project.chapters.length);
+  }
+
+  /* deleting from the chapter tab (the button carries no payload of its own) */
+  a.importProject(JSON.parse(JSON.stringify(LT.demo.build())));
+  await flush();
+  a.selectChapter(s.project.chapters[0].id);
+  await flush();
+  const delChapterBtn = [...doc.querySelectorAll('.insp-actions .btn')].find(function (b) {
+    return /Delete chapter/.test(b.textContent);
+  });
+  check('chapter tab offers a delete button', !!delChapterBtn);
+  const doomedScenes = s.project.scenes.filter(function (x) { return x.chapterId === s.project.chapters[0].id; }).length;
+  if (delChapterBtn) {
+    window.confirm = function () { return true; };
+    fire(delChapterBtn, 'click');
+    await flush();
+    eq('chapter tab deletes the chapter', s.project.chapters.length, 2);
+    eq('its scenes survive ungrouped',
+      s.project.scenes.filter(function (x) { return x.chapterId === null; }).length, doomedScenes);
+  }
+  a.importProject(JSON.parse(JSON.stringify(p)));
+  await flush();
+
+  /* the collapse twisty hides a chapter's scenes without hiding the work */
+  const twisty = doc.querySelectorAll('.rail .chapter-row')[0].querySelector('.twisty');
+  const rowsShownNow = doc.querySelectorAll('.rail .sub-row').length;
+  fire(twisty, 'click');
+  await flush();
+  const subLeft = doc.querySelectorAll('.rail .sub-row').length;
+  check('collapsed chapter hides its scenes', subLeft < rowsShownNow,
+    subLeft + ' of ' + rowsShownNow);
+  fire(twisty, 'click');
+  await flush();
+  eq('expanding brings them back', doc.querySelectorAll('.rail .sub-row').length, rowsShownNow);
+
+  /* "+ new chapter" in the rail head */
+  const addChapterBtn = doc.querySelector('.rail-head .icon-btn');
+  fire(addChapterBtn, 'click');
+  await flush();
+  eq('rail adds a chapter', s.project.chapters.length, chapterCount + 1);
+  eq('new chapter selected', s.selection.chapterId, s.project.chapters[chapterCount].id);
+  eq('it appears in the rail', doc.querySelectorAll('.rail .chapter-row').length, chapterCount + 1);
+
+  /* the matrix band is clickable, and a chapter's block is its own span */
+  a.importProject(JSON.parse(JSON.stringify(p)));
+  await flush();
+  const blocks = doc.querySelectorAll('.m-chapterblock');
+  eq('one block per contiguous run', blocks.length, chapterCount);
+  const bandWidths = [...blocks].reduce(function (n, el) { return n + parseFloat(el.style.width); }, 0);
+  eq('blocks tile the canvas exactly', bandWidths, s.project.scenes.length * s.zoom);
+  eq('a block is its scenes wide', blocks[0].style.width,
+    chapterCount ? (1 * s.zoom) + 'px' : '224px');
+  fire(blocks[2], 'click');
+  await flush();
+  eq('band block selects the chapter', s.selection.kind, 'chapter');
+
+  /* a sheet with no chapter row leaves scenes ungrouped instead of inventing one */
+  const noCh = LT.importer.parseDelimited(
+    'Scena,one,two,three\nCzas akcji,1.1,1.2,1.3\nHero,x,x,\nHeroine,,\n');
+  const noChRes = LT.importer.importTable(noCh, { title: 'no chapters here' });
+  eq('no chapter row, no chapters', noChRes.project.chapters.length, 0);
+  check('scenes left ungrouped',
+    noChRes.project.scenes.every(function (x) { return x.chapterId === null; }));
+  const warn = LT.model.validate(noChRes.project);
+  check('validate warns about ungrouped scenes',
+    warn.warnings.some(function (w) { return /no chapter/i.test(w); }), warn.warnings.join('|'));
+
   console.log('\n== character tracks in the matrix ==');
   const addRow = doc.querySelector('.m-rowhead.add-rowhead');
   check('add-character row exists', !!addRow);
@@ -375,7 +676,7 @@ await (async () => {
   eq('add row adds a character', s.project.entities.characters.length, charsBefore + 1);
   check('new character selected', s.selection.entityId === s.project.entities.characters[charsBefore].id);
   eq('new character opens Character tab', s.selection.kind, 'character');
-  check('character tab active after add', doc.querySelectorAll('.insp-tabs button')[1].classList.contains('on'));
+  check('character tab active after add', doc.querySelectorAll('.insp-tabs button')[2].classList.contains('on'));
 
   const rowheads = doc.querySelectorAll('.m-rowhead:not(.stripe):not(.add-rowhead):not(.special)');
   check('character rowheads rendered', rowheads.length === charsBefore + 1, 'rows=' + rowheads.length);
@@ -413,7 +714,7 @@ await (async () => {
   check('track click selects character', !!s.selection.entityId);
   eq('track click opens Character tab', s.selection.kind, 'character');
   check('character tab active after track click',
-    doc.querySelectorAll('.insp-tabs button')[1].classList.contains('on'));
+    doc.querySelectorAll('.insp-tabs button')[2].classList.contains('on'));
 
   await flush();
   console.log('\n== strips under the header, above the tracks ==');
@@ -439,7 +740,7 @@ await (async () => {
   await flush();
   eq('cell click sets kind', s.selection.kind, 'cell');
   const sceneTabBtn = doc.querySelectorAll('.insp-tabs button')[0];
-  const cellTabBtn = doc.querySelectorAll('.insp-tabs button')[2];
+  const cellTabBtn = doc.querySelectorAll('.insp-tabs button')[3];
   check('cell selection shows Cell tab', cellTabBtn.classList.contains('on'), 'tab=' + (cellTabBtn.classList.contains('on') ? 'cell' : 'scene'));
 
   const head3 = doc.querySelectorAll('.m-colhead')[3];
@@ -568,9 +869,9 @@ await (async () => {
   await flush();
   eq('kind is character', s.selection.kind, 'character');
   check('scene selection preserved', !!s.selection.sceneId || s.selection.sceneId === null);
-  const charTabBtn = doc.querySelectorAll('.insp-tabs button')[1];
+  const charTabBtn = doc.querySelectorAll('.insp-tabs button')[2];
   const sceneTabBtn0 = doc.querySelectorAll('.insp-tabs button')[0];
-  const cellTabBtn0 = doc.querySelectorAll('.insp-tabs button')[2];
+  const cellTabBtn0 = doc.querySelectorAll('.insp-tabs button')[3];
   check('character tab active', charTabBtn.classList.contains('on') &&
     !sceneTabBtn0.classList.contains('on') && !cellTabBtn0.classList.contains('on'),
     'scene=' + sceneTabBtn0.classList.contains('on') + ' cell=' + cellTabBtn0.classList.contains('on'));
@@ -643,7 +944,7 @@ await (async () => {
   a.selectScene(s.project.scenes[0].id);
   a.selectCharacter(s.project.entities.characters[0].id);
   await flush();
-  fire(doc.querySelectorAll('.insp-tabs button')[2], 'click');
+  fire(doc.querySelectorAll('.insp-tabs button')[3], 'click');
   await flush();
   check('cell tab from character state', doc.querySelectorAll('.presence-picker button').length === 3,
     'picks=' + doc.querySelectorAll('.presence-picker button').length);

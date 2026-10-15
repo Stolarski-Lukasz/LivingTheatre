@@ -45,6 +45,10 @@
         return s.selection.entityId ? d.value.charIndex[s.selection.entityId] || null : null;
       });
 
+      var selectedChapter = Vue.computed(function () {
+        return s.selection.chapterId ? d.value.chapterIndex[s.selection.chapterId] || null : null;
+      });
+
       var selectedCell = Vue.computed(function () {
         if (!s.selection.sceneId || !s.selection.entityId) return null;
         return d.value.cellMap[s.selection.sceneId + '|' + s.selection.entityId] || null;
@@ -84,9 +88,15 @@
         s.project.cells.forEach(function (c) {
           if (c.presence === model.PRESENCE.ACTIVE) active++;
         });
+        var ungrouped = 0;
+        s.project.scenes.forEach(function (x) {
+          if (!x.chapterId) ungrouped++;
+        });
         return {
           scenes: s.project.scenes.length,
           chars: s.project.entities.characters.length,
+          units: s.project.chapters.length,
+          ungrouped: ungrouped,
           active: active
         };
       });
@@ -113,6 +123,12 @@
       function onSelectScene(sceneId) {
         a.selectScene(sceneId);
         if (sceneId) scrollSceneIntoView(sceneId);
+      }
+
+      /* A chapter is selected as a unit; the scene and character selections
+         stay put so the other inspector tabs remain usable. */
+      function onSelectChapter(chapterId) {
+        a.selectChapter(chapterId);
       }
 
       function onPatchScene(payload) {
@@ -145,9 +161,8 @@
       }
 
       function onDropScene(payload) {
-        if (a.moveSceneTo(payload.sceneId, payload.to)) {
-          scrollSceneIntoView(payload.sceneId);
-        }
+        if (!a.moveSceneTo(payload.sceneId, payload.to, { chapterId: payload.chapterId })) return;
+        scrollSceneIntoView(payload.sceneId);
       }
 
       function onMinimapJump(sceneId) {
@@ -245,11 +260,70 @@
         }
       }
 
-      function addScene() {
-        var sc = a.addScene({ title: 'New scene' });
+      function addScene(chapterId) {
+        var sc = a.addScene({ title: 'New scene', chapterId: chapterId || null });
         Vue.nextTick(function () { scrollSceneIntoView(sc.id); });
-        a.notice('Scene added at the end. Drag its header to move it.', 'ok');
+        var ch = model.byId(s.project.chapters, sc.chapterId);
+        a.notice(chapterId && ch
+          ? 'Scene added to ' + ch.title + '. Drag its header to move it.'
+          : 'Scene added at the end. Drag its header to move it.', 'ok');
       }
+
+      /* The chapters of a work are its own business: they can be added,
+         renamed, moved and deleted without ever spilling their scenes. */
+      function addChapter() {
+        var ch = a.addChapter();
+        a.selectChapter(ch.id);
+        a.notice('Started ' + ch.title + '. Add scenes to it, or drag one in.', 'ok');
+        return ch;
+      }
+
+      function renameChapter(id, title) {
+        a.updateChapter(id, { title: title });
+      }
+
+      function moveChapter(id, delta) {
+        if (!a.moveChapter(id, delta)) {
+          var ch = model.byId(s.project.chapters, id);
+          a.notice(ch && ch.title ? ch.title + ' has no scenes to move yet.' : 'Nothing to move.', 'error');
+        }
+      }
+
+      function updateChapter(patch) {
+        var id = s.selection.chapterId;
+        if (id) a.updateChapter(id, patch || {});
+      }
+
+      function moveSelectedChapter(delta) {
+        moveChapter(s.selection.chapterId, delta);
+      }
+
+      function removeSelectedChapter() {
+        removeChapter(s.selection.chapterId);
+      }
+
+      /* "+ new chapter" on the Scene tab: create the unit, then step this
+         scene into it, so the select settles on the new chapter. */
+      function newChapterForScene() {
+        var ch = addChapter();
+        if (s.selection.sceneId) a.updateScene(s.selection.sceneId, { chapterId: ch.id });
+        return ch;
+      }
+
+      function removeChapter(id) {
+        var ch = model.byId(s.project.chapters, id);
+        if (!ch) return;
+        var n = d.value.chapterGroups.filter(function (g) { return g.id === id; })[0];
+        var msg = n && n.count
+          ? 'Delete "' + ch.title + '"? Its ' + n.count + (n.count === 1 ? ' scene' : ' scenes') +
+            ' stay in the project, ungrouped.'
+          : 'Delete "' + ch.title + '"? It has no scenes.';
+        if (!window.confirm(msg)) return;
+        a.removeChapter(id);
+        a.notice('Deleted ' + ch.title + '. Its scenes are still here, ungrouped.', 'ok');
+      }
+
+      function setUnitLabel(label) { a.setUnitLabel(label); }
 
       /* ---------- project io ---------- */
       function pickFile() {
@@ -400,6 +474,14 @@
       function resetInspectorWidth() { a.setInspectorWidth(344); }
 
       /* ---------- view ---------- */
+      /* A work may call its units Acts, Episodes, Stories — the status bar
+         should say so properly rather than "Storys". */
+      function unitPlural(term) {
+        var t = term || 'Chapter';
+        if (/(s|x|z|ch|sh)$/i.test(t)) return t + 'es';
+        if (/[^aeiou]y$/i.test(t)) return t.replace(/y$/i, 'ies');
+        return t + 's';
+      }
       function setZoom(v) { a.setZoom(v); }
       function setFilter(v) { s.filters.text = v; }
       function toggleStrip(key) { a.toggleStrip(key); }
@@ -547,8 +629,10 @@
         selectedScene: selectedScene,
         selectedEntity: selectedEntity,
         selectedCell: selectedCell,
+        selectedChapter: selectedChapter,
 
         onSelectScene: onSelectScene,
+        onSelectChapter: onSelectChapter,
         onPatchScene: onPatchScene,
         onUpdateCharacter: onUpdateCharacter,
         onSelectCell: onSelectCell,
@@ -564,6 +648,7 @@
         setPresence: setPresence,
         clearCell: clearCell,
         updateScene: updateScene,
+        updateChapter: updateChapter,
         moveScene: moveScene,
         removeScene: removeScene,
 
@@ -571,6 +656,14 @@
         renameCharacter: renameCharacter,
         removeCharacter: removeCharacter,
         addScene: addScene,
+        addChapter: addChapter,
+        newChapterForScene: newChapterForScene,
+        renameChapter: renameChapter,
+        moveChapter: moveChapter,
+        removeChapter: removeChapter,
+        moveSelectedChapter: moveSelectedChapter,
+        removeSelectedChapter: removeSelectedChapter,
+        setUnitLabel: setUnitLabel,
 
         pickFile: pickFile,
         onFileChosen: onFileChosen,
@@ -585,6 +678,7 @@
         renameProject: renameProject,
 
         setZoom: setZoom,
+        unitPlural: unitPlural,
         setFilter: setFilter,
         toggleRail: toggleRail,
         startRailResize: startRailResize,
@@ -634,9 +728,18 @@
   <div v-if="railVisible" class="rail-wrap">
     <lt-rail
       :scenes="s.project.scenes"
+      :groups="d.chapterGroups"
+      :unassigned="d.unassignedScenes"
+      :unit-label="d.unitLabel"
       :selection="s.selection"
       :report="report"
       @select-scene="onSelectScene"
+      @select-chapter="onSelectChapter"
+      @add-chapter="addChapter"
+      @rename-chapter="renameChapter"
+      @move-chapter="moveChapter"
+      @remove-chapter="removeChapter"
+      @add-scene="addScene"
       @jump-report="onJumpReport" />
     <div class="rail-resizer" :class="{ active: resizing }"
          title="Drag to resize · double-click to reset"
@@ -655,12 +758,14 @@
       :chapter-index="d.chapterIndex"
       :zoom="s.zoom"
       :rail-w="railW"
+      :unit-label="d.unitLabel"
       :selection="s.selection"
       :show-pov="s.showPov"
       :show-places="s.showPlaces"
       :show-time="s.showTime"
       :filters="s.filters"
       @select-scene="onSelectScene"
+      @select-chapter="onSelectChapter"
       @select-cell="onSelectCell"
       @select-entity="onSelectEntity"
       @cycle-cell="onCycleCell"
@@ -693,14 +798,22 @@
         :entity-stats="entityStats"
         :all-scenes="s.project.scenes"
         :chapters="s.project.chapters"
+        :chapter="selectedChapter"
         :characters="s.project.entities.characters"
+        :unit-label="d.unitLabel"
         @update-cell="updateCell"
         @update-note="updateNote"
         @set-presence="setPresence"
         @clear-cell="clearCell"
         @update-scene="updateScene"
+        @update-chapter="updateChapter"
         @update-character="onUpdateCharacter"
         @remove-character="removeCharacter"
+        @add-scene="addScene"
+        @new-chapter="newChapterForScene"
+        @move-chapter="moveSelectedChapter"
+        @remove-chapter="removeSelectedChapter"
+        @set-unit="setUnitLabel"
         @select-scene="onSelectScene"
         @move-scene="moveScene"
         @remove-scene="removeScene"
@@ -713,6 +826,12 @@
     <span>{{ s.project.meta.title || 'Untitled' }}</span>
     <span class="dot-sep"></span>
     <span>{{ totals.scenes }} scenes</span>
+    <span class="dot-sep"></span>
+    <span>{{ totals.units }} {{ unitPlural(d.unitLabel).toLowerCase() }}</span>
+    <span v-if="totals.ungrouped" class="status-warn"
+          :title="totals.ungrouped + ' scenes belong to no ' + d.unitLabel.toLowerCase()">
+      ({{ totals.ungrouped }} ungrouped)
+    </span>
     <span class="dot-sep"></span>
     <span>{{ totals.chars }} characters</span>
     <span class="dot-sep"></span>

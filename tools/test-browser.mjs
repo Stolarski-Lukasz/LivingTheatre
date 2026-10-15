@@ -26,7 +26,11 @@ const check = (name, cond, extra) => {
   else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); }
 };
 
-const browser = await chromium.launch();
+/* A system Chromium can be used by pointing LT_CHROMIUM at it, e.g.
+   LT_CHROMIUM=/usr/bin/google-chrome */
+const browser = await chromium.launch(
+  process.env.LT_CHROMIUM ? { executablePath: process.env.LT_CHROMIUM } : {}
+);
 const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
 
 const consoleErrors = [];
@@ -112,7 +116,8 @@ const scrolled = await page.evaluate(async () => {
 check('corner stays pinned left while scrolling right', Math.abs(scrolled.cornerLeft - scrolled.stageLeft) < 2,
   'corner=' + Math.round(scrolled.cornerLeft) + ' stage=' + Math.round(scrolled.stageLeft));
 check('rowhead stays pinned left', Math.abs(scrolled.rowheadLeft - scrolled.stageLeft) < 2);
-check('colhead stays pinned top', Math.abs(scrolled.headTop - scrolled.stageTop) < 2,
+check('colhead stays pinned below the chapter band',
+  Math.abs(scrolled.headTop - scrolled.stageTop - 22) < 2,
   'head=' + Math.round(scrolled.headTop) + ' stage=' + Math.round(scrolled.stageTop));
 check('ruler stays pinned bottom', Math.abs(scrolled.rulerBottom - scrolled.stageBottom) < 2,
   'ruler=' + Math.round(scrolled.rulerBottom) + ' stage=' + Math.round(scrolled.stageBottom));
@@ -241,7 +246,7 @@ const tabs = await page.evaluate(async () => {
   btns[0].click();
   await new Promise((r) => setTimeout(r, 60));
   const sceneFields = document.querySelectorAll('.insp-section .insp-input').length;
-  btns[2].click();
+  btns[3].click();
   await new Promise((r) => setTimeout(r, 60));
   const picker = !!document.querySelector('.presence-picker');
   btns[0].click();
@@ -272,12 +277,17 @@ const railBefore = await page.evaluate(() => ({
   railW: document.querySelector('.rail').getBoundingClientRect().width,
   stageW: document.querySelector('.stage').getBoundingClientRect().width,
   sceneRows: document.querySelectorAll('.rail .scene-no').length,
+  chapterRows: document.querySelectorAll('.rail .chapter-row').length,
+  subRows: document.querySelectorAll('.rail .sub-row').length,
   hasCharSection: [...document.querySelectorAll('.rail-head')].some((h) => /characters/i.test(h.textContent)),
+  chapter: window.LT.store.state.project.chapters.length,
   addRow: !!document.querySelector('.m-rowhead.add-rowhead'),
   charRowheads: document.querySelectorAll('.m-rowhead:not(.stripe):not(.add-rowhead):not(.special)').length
 }));
 check('rail shows scenes only', railBefore.rail && railBefore.sceneRows === 23 && !railBefore.hasCharSection,
   JSON.stringify(railBefore));
+check('rail groups scenes under chapters', railBefore.chapterRows === railBefore.chapter &&
+  railBefore.subRows === 23, JSON.stringify(railBefore));
 check('add-character row in matrix', railBefore.addRow);
 check('character rows in matrix', railBefore.charRowheads === 9, 'rows=' + railBefore.charRowheads);
 
@@ -311,6 +321,116 @@ const resized = await page.evaluate(() => ({
 check('drag resizes rail', Math.abs(resized.railW - 420) < 8 && Math.abs(resized.railPx - 420) < 8,
   JSON.stringify(resized));
 await page.screenshot({ path: path.join(shots, '11-rail-resized.png') });
+
+console.log('\n== chapters as units ==');
+const chapterBand = await page.evaluate(async () => {
+  const st = window.LT.store.state;
+  const stage = document.querySelector('.scroll-stage');
+  stage.scrollLeft = 0;
+  stage.scrollTop = 0;
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const blocks = [...document.querySelectorAll('.m-chapterblock')];
+  const band = document.querySelector('.m-chapterrow');
+  return {
+    chapters: st.project.chapters.length,
+    blocks: blocks.length,
+    bandTop: Math.round(band.getBoundingClientRect().top),
+    bandLeft: Math.round(band.getBoundingClientRect().left),
+    headLeft: Math.round(document.querySelector('.m-bandhead').getBoundingClientRect().left),
+    firstBlockLeft: Math.round(blocks[0].getBoundingClientRect().left),
+    widths: blocks.map((b) => Math.round(b.getBoundingClientRect().width)),
+    titles: blocks.map((b) => b.textContent.trim()),
+    canvasWidth: Math.round(document.querySelector('.m-canvas').getBoundingClientRect().width),
+    railW: Math.round(document.querySelector('.m-bandhead').getBoundingClientRect().width)
+  };
+});
+check('one band block per chapter', chapterBand.blocks === chapterBand.chapters,
+  chapterBand.blocks + ' of ' + chapterBand.chapters);
+check('band blocks tile the canvas',
+  chapterBand.widths.reduce((a, b) => a + b, 0) === 23 * 56,
+  JSON.stringify(chapterBand.widths));
+check('band blocks start after the corner',
+  chapterBand.firstBlockLeft === chapterBand.headLeft + chapterBand.railW,
+  'block=' + chapterBand.firstBlockLeft + ' corner=' + chapterBand.headLeft + '+' + chapterBand.railW);
+check('band labels carry titles', chapterBand.titles.join(' ').length > 20,
+  chapterBand.titles.join(' | '));
+await page.screenshot({ path: path.join(shots, '12-chapter-band.png') });
+
+const bandSticks = await page.evaluate(async () => {
+  const stage = document.querySelector('.scroll-stage');
+  stage.scrollTop = 120;
+  await new Promise((r) => setTimeout(r, 120));
+  const band = document.querySelector('.m-chapterrow').getBoundingClientRect();
+  const head = document.querySelector('.m-headrow').getBoundingClientRect();
+  const corner = document.querySelector('.m-bandhead').getBoundingClientRect();
+  return {
+    bandTop: Math.round(band.top),
+    headTop: Math.round(head.top),
+    cornerLeft: Math.round(corner.left),
+    railLeft: Math.round(document.querySelector('.rail-wrap').getBoundingClientRect().right)
+  };
+});
+check('band sticks above the headers', bandSticks.bandTop <= bandSticks.headTop,
+  JSON.stringify(bandSticks));
+check('band corner stays put while scrolling', Math.abs(bandSticks.cornerLeft - bandSticks.railLeft) < 2,
+  JSON.stringify(bandSticks));
+await page.screenshot({ path: path.join(shots, '13-band-sticky.png') });
+
+const chapterTabInBrowser = await page.evaluate(async () => {
+  const s = window.LT.store.state;
+  s.selection = { sceneId: null, entityId: null, chapterId: s.project.chapters[1].id, kind: 'chapter' };
+  await new Promise((r) => setTimeout(r, 150));
+  const btns = [...document.querySelectorAll('.insp-tabs button')];
+  const on = btns.find((b) => b.classList.contains('on'));
+  const sec = document.querySelector('.insp-section');
+  return {
+    tab: on && on.textContent.trim(),
+    meta: sec && sec.textContent.replace(/\s+/g, ' ').trim().slice(0, 60),
+    hasAdd: !!sec && [...sec.querySelectorAll('.btn')].some((b) => /new scene here/.test(b.textContent)),
+    unitField: sec && [...sec.querySelectorAll('.insp-input')].some((el) =>
+      /Chapter, Act, Part/.test(el.getAttribute('title') || ''))
+  };
+});
+check('chapter tab opens from the store', chapterTabInBrowser.tab === 'Chapter',
+  JSON.stringify(chapterTabInBrowser));
+check('chapter tab shows its scene count', /scenes/.test(chapterTabInBrowser.meta), chapterTabInBrowser.meta);
+check('chapter tab offers a new scene', chapterTabInBrowser.hasAdd);
+check('chapter tab holds the unit-name field', chapterTabInBrowser.unitField);
+
+const railChapterClick = await page.evaluate(async () => {
+  const s = window.LT.store.state;
+  s.selection = { sceneId: null, entityId: null, chapterId: null, kind: null };
+  await new Promise((r) => setTimeout(r, 120));
+  const rows = [...document.querySelectorAll('.rail .chapter-row')];
+  rows[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 150));
+  return {
+    rows: rows.length,
+    kind: s.selection.kind,
+    chapterId: s.selection.chapterId,
+    expected: s.project.chapters[1].id,
+    selectedRow: !!document.querySelector('.rail .chapter-row.selected')
+  };
+});
+check('rail chapter row selects it', railChapterClick.kind === 'chapter' &&
+  railChapterClick.chapterId === railChapterClick.expected && railChapterClick.selectedRow,
+  JSON.stringify(railChapterClick));
+
+const unitRename = await page.evaluate(async () => {
+  const s = window.LT.store.state;
+  window.LT.store.actions.setUnitLabel('Part');
+  await new Promise((r) => setTimeout(r, 120));
+  const blocks = [...document.querySelectorAll('.m-chapterblock')];
+  const head = document.querySelector('.m-bandhead').textContent.trim();
+  window.LT.store.actions.setUnitLabel('Chapter');
+  await new Promise((r) => setTimeout(r, 120));
+  return { label: s.project.meta.unitLabel, headLabel: head, blocks: blocks.length };
+});
+check('renaming the unit relabels the interface', /^Part/.test(unitRename.headLabel),
+  JSON.stringify(unitRename));
+check('renaming the unit renumbers chapters',
+  unitRename.label === 'Part' || unitRename.label === 'Chapter');
+await page.screenshot({ path: path.join(shots, '14-chapter-tab.png') });
 
 const noHoverTools = await page.evaluate(() => ({
   tools: document.querySelectorAll('.rh-tools').length,
@@ -431,7 +551,7 @@ console.log('\n== character options tab ==');
   };
 });
 check('character tab opens without a scene', charTab.tabOn === 'Character', charTab.tabOn);
-check('three tabs plus close', charTab.tabCount === 4, 'n=' + charTab.tabCount);
+check('three tabs plus the unit tab and close', charTab.tabCount === 5, 'n=' + charTab.tabCount);
 check('stats strip rendered', charTab.stats);
 check('seven text fields', charTab.fields === 7, 'n=' + charTab.fields);
 check('palette rendered', charTab.swatches === 12, 'n=' + charTab.swatches);

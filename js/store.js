@@ -22,7 +22,7 @@
     project: model.createProject(),
     projectId: null,
     library: [],
-    selection: { sceneId: null, entityId: null, kind: null },
+    selection: { sceneId: null, entityId: null, chapterId: null, kind: null },
     zoom: 56,
     railOpen: true,
     railW: 232,
@@ -69,12 +69,24 @@
       (threadCellMap[key] = threadCellMap[key] || []).push(c);
     });
 
-    var scenesByChapter = Object.create(null);
-    p.chapters.forEach(function (ch) { scenesByChapter[ch.id] = []; });
-    scenes.forEach(function (s) {
-      if (!scenesByChapter[s.chapterId]) scenesByChapter[s.chapterId] = [];
-      scenesByChapter[s.chapterId].push(s);
+    /* Chapters are shown as groups: one entry per chapter in presentation
+       order, then whatever scenes nobody has grouped yet. */
+    var byOrder = scenes.slice().sort(function (a, b) { return a.order - b.order; });
+    var chapterGroups = model.chapterSequence(p).map(function (ch, i) {
+      var list = byOrder.filter(function (s) { return s.chapterId === ch.id; });
+      return {
+        id: ch.id,
+        chapter: ch,
+        title: ch.title,
+        unitNo: i + 1,
+        order: i,
+        scenes: list,
+        count: list.length,
+        hiddenCount: list.filter(function (s) { return s.hidden; }).length,
+        firstOrder: list.length ? list[0].order : null
+      };
     });
+    var unassignedScenes = byOrder.filter(function (s) { return !s.chapterId; });
 
     var min = null, max = null;
     scenes.forEach(function (s) {
@@ -92,7 +104,9 @@
       sceneIndex: sceneIndex,
       cellMap: cellMap,
       threadCellMap: threadCellMap,
-      scenesByChapter: scenesByChapter,
+      chapterGroups: chapterGroups,
+      unassignedScenes: unassignedScenes,
+      unitLabel: model.unitLabel(p),
       storyMin: min,
       storyMax: max,
       chapters: p.chapters,
@@ -255,7 +269,7 @@
     pushHistory();
     state.project = model.createProject({ meta: { title: title || 'Untitled story' } });
     state.projectId = null;
-    state.selection = { sceneId: null, entityId: null, kind: null };
+    state.selection = { sceneId: null, entityId: null, chapterId: null, kind: null };
     persist();
     return state.project;
   }
@@ -267,7 +281,7 @@
     pushHistory();
     state.project = model.migrate(entry);
     state.projectId = state.project.meta.id;
-    state.selection = { sceneId: null, entityId: null, kind: null };
+    state.selection = { sceneId: null, entityId: null, chapterId: null, kind: null };
     persist();
     return state.project;
   }
@@ -294,7 +308,7 @@
     state.project = model.migrate(parsed);
     state.project.meta.id = model.uid('prj');
     state.projectId = state.project.meta.id;
-    state.selection = { sceneId: null, entityId: null, kind: null };
+    state.selection = { sceneId: null, entityId: null, chapterId: null, kind: null };
     persist();
     notice('Imported "' + state.project.meta.title + '".', 'ok');
     return state.project;
@@ -399,7 +413,7 @@
       p.cells = p.cells.filter(function (c) { return c.entityId !== id; });
       p.scenes.forEach(function (s) { if (s.pov === id) { s.pov = null; s.povIsNarrator = true; } });
       if (state.selection.entityId === id) {
-        state.selection = { sceneId: state.selection.sceneId, entityId: null, kind: 'scene' };
+        state.selection = { sceneId: state.selection.sceneId, entityId: null, chapterId: state.selection.chapterId, kind: 'scene' };
       }
     });
   }
@@ -426,12 +440,16 @@
     return null;
   }
 
-  /* ---------- scene operations ---------- */
+  /* ---------- chapter operations ---------- */
+  /* A chapter's number comes from where its scenes sit in the presentation,
+     so adding one means appending it to the list. */
   function addChapter(props) {
     return transaction(function () {
+      var p = state.project;
       var ch = model.createChapter(props);
-      ch.order = state.project.chapters.length;
-      state.project.chapters.push(ch);
+      if (!ch.title) ch.title = model.unitTitle(p, p.chapters.length);
+      ch.order = p.chapters.length;
+      p.chapters.push(ch);
       return ch;
     });
   }
@@ -445,15 +463,93 @@
     });
   }
 
+  /* The scenes survive: they stop being grouped, and the rail shows them
+     under "No chapter" until they are given a home. */
+  function removeChapter(id) {
+    return transaction(function () {
+      var p = state.project;
+      p.chapters = p.chapters.filter(function (c) { return c.id !== id; });
+      p.scenes.forEach(function (s) {
+        if (s.chapterId === id) s.chapterId = null;
+      });
+      if (state.selection.chapterId === id) {
+        state.selection = {
+          sceneId: state.selection.sceneId,
+          entityId: state.selection.entityId,
+          chapterId: null,
+          kind: 'scene'
+        };
+      }
+      return true;
+    });
+  }
+
+  /* Chapters named after the default pattern — "Chapter 3", "Akt 7" — keep
+     counting from the presentation order, so moving a chapter renumbers it
+     and renaming the unit relabels them. Hand-written titles are untouched. */
+  function renumberChapters(prevLabel) {
+    var p = state.project;
+    var re = new RegExp('^' + escapeRe(prevLabel || model.unitLabel(p)) + ' \\d+$');
+    model.chapterSequence(p).forEach(function (c, i) {
+      if (re.test(c.title || '')) c.title = model.unitTitle(p, i);
+    });
+  }
+
+  /* Moving a chapter moves its whole block of scenes, so a chapter's place
+     in the list and its scenes' place in the presentation remain the same
+     fact. A chapter with no scenes has no position to move. */
+  function moveChapter(id, delta) {
+    return keyed('chapter:move:' + id, function () {
+      var p = state.project;
+      var seq = model.chapterSequence(p).map(function (c) { return c.id; });
+      var i = seq.indexOf(id);
+      var j = i + delta;
+      if (i === -1 || j < 0 || j >= seq.length) return false;
+      var scenes = p.scenes.slice().sort(function (a, b) { return a.order - b.order; });
+      var blockA = scenes.filter(function (s) { return s.chapterId === id; });
+      var blockB = scenes.filter(function (s) { return s.chapterId === seq[j]; });
+      if (!blockA.length || !blockB.length) return false;
+      var anchor = -1;
+      scenes.forEach(function (s, k) {
+        if (anchor === -1 && (s.chapterId === id || s.chapterId === seq[j])) anchor = k;
+      });
+      var rest = scenes.filter(function (s) {
+        return s.chapterId !== id && s.chapterId !== seq[j];
+      });
+      var combined = delta < 0 ? blockA.concat(blockB) : blockB.concat(blockA);
+      p.scenes = rest.slice(0, anchor).concat(combined, rest.slice(anchor));
+      reindexOrders();
+      renumberChapters();
+      return true;
+    });
+  }
+
+  /* The word this work uses for its big units — Chapter, Act, Part, Book,
+     Episode. Chapters still carrying a default name follow the new term;
+     anything the author typed by hand is left alone. */
+  function setUnitLabel(label) {
+    return keyed('meta:unitLabel', function () {
+      var p = state.project;
+      var prev = model.unitLabel(p);
+      p.meta.unitLabel = String(label || '').trim().slice(0, 24);
+      renumberChapters(prev);
+    });
+  }
+
+  function escapeRe(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /* ---------- scene operations ---------- */
   function addScene(props) {
     return transaction(function () {
       var p = state.project;
       var s = model.createScene(props);
       s.order = p.scenes.length;
       if (!s.chapterId) {
-        var last = p.chapters[p.chapters.length - 1];
+        var last = model.chapterSequence(p).slice(-1)[0];
         if (!last) {
-          var ch = model.createChapter({ title: 'Chapter 1' });
+          var ch = model.createChapter({ title: model.unitTitle(p, 0) });
           ch.order = 0;
           p.chapters.push(ch);
           last = ch;
@@ -498,7 +594,6 @@
 
   function reindexOrders() {
     state.project.scenes.forEach(function (s, i) { s.order = i; });
-    state.project.chapters.forEach(function (c, i) { c.order = i; });
   }
 
   function moveScene(id, delta) {
@@ -508,18 +603,26 @@
     return moveSceneTo(id, idx + delta);
   }
 
-  /* Presentation order only. Story time is never touched here. */
-  function moveSceneTo(id, index) {
+  /* Presentation order only. Story time is never touched here. Dropping a
+     scene onto another chapter's columns can hand it that chapter, so the
+     groups stay contiguous — that lands in the same undo step. */
+  function moveSceneTo(id, index, opts) {
     return keyed('move:' + id, function () {
       var p = state.project;
       var idx = p.scenes.findIndex(function (s) { return s.id === id; });
       if (idx === -1) return false;
       index = Math.max(0, Math.min(p.scenes.length - 1, index));
-      if (index === idx) return false;
-      var moved = p.scenes.splice(idx, 1)[0];
-      p.scenes.splice(index, 0, moved);
-      reindexOrders();
-      return true;
+      var moved = p.scenes[idx];
+      var movedList = index !== idx;
+      if (movedList) {
+        p.scenes.splice(idx, 1);
+        p.scenes.splice(index, 0, moved);
+      }
+      var regroup = opts && opts.chapterId !== undefined &&
+        moved.chapterId !== opts.chapterId;
+      if (regroup) moved.chapterId = opts.chapterId;
+      if (movedList) reindexOrders();
+      return movedList || regroup;
     });
   }
 
@@ -624,13 +727,14 @@
 
   /* ---------- selection & ui ---------- */
   /* kind records what was last clicked: 'cell' opens the inspector on the
-     Cell tab, 'scene' on the Scene tab — a scene header or a strip cell
-     must never inherit the Cell tab just because a character is still
-     selected. */
+     Cell tab, 'scene' on the Scene tab, 'chapter' on the chapter's tab — a
+     scene header or a strip cell must never inherit the Cell tab just
+     because a character is still selected. */
   function select(sceneId, entityId) {
     state.selection = {
       sceneId: sceneId === undefined ? null : sceneId,
       entityId: entityId === undefined ? null : entityId,
+      chapterId: state.selection.chapterId,
       kind: entityId ? 'cell' : 'scene'
     };
   }
@@ -639,19 +743,42 @@
     state.selection = {
       sceneId: sceneId,
       entityId: entityId,
+      chapterId: state.selection.chapterId,
       kind: entityId ? 'cell' : 'scene'
     };
   }
 
   function selectScene(sceneId) {
     if (sceneId === null || sceneId === undefined) {
-      state.selection = { sceneId: null, entityId: null, kind: 'scene' };
+      state.selection = { sceneId: null, entityId: null, chapterId: null, kind: 'scene' };
       return;
     }
+    var scene = model.byId(state.project.scenes, sceneId);
     state.selection = {
       sceneId: sceneId,
       entityId: state.selection.entityId,
+      chapterId: scene ? scene.chapterId : state.selection.chapterId,
       kind: 'scene'
+    };
+  }
+
+  /* Selecting a chapter opens its own tab; the scene and character stay
+     selected so the other tabs remain usable. */
+  function selectChapter(chapterId) {
+    if (!chapterId) {
+      state.selection = {
+        sceneId: state.selection.sceneId,
+        entityId: state.selection.entityId,
+        chapterId: null,
+        kind: 'scene'
+      };
+      return;
+    }
+    state.selection = {
+      sceneId: state.selection.sceneId,
+      entityId: state.selection.entityId,
+      chapterId: chapterId,
+      kind: 'chapter'
     };
   }
 
@@ -661,6 +788,7 @@
     state.selection = {
       sceneId: state.selection.sceneId,
       entityId: entityId,
+      chapterId: state.selection.chapterId,
       kind: 'character'
     };
   }
@@ -704,6 +832,9 @@
 
       addChapter: addChapter,
       updateChapter: updateChapter,
+      removeChapter: removeChapter,
+      moveChapter: moveChapter,
+      setUnitLabel: setUnitLabel,
       addScene: addScene,
       updateScene: updateScene,
       removeScene: removeScene,
@@ -724,6 +855,7 @@
       select: select,
       selectCell: selectCell,
       selectScene: selectScene,
+      selectChapter: selectChapter,
       selectCharacter: selectCharacter,
       setZoom: setZoom,
       setRailOpen: setRailOpen,

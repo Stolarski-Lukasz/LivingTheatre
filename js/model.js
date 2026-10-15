@@ -125,6 +125,7 @@
         id: uid('prj'),
         title: 'Untitled story',
         author: '',
+        unitLabel: DEFAULT_UNIT_LABEL,
         schemaVersion: SCHEMA_VERSION,
         created: nowISO(),
         modified: nowISO()
@@ -183,7 +184,7 @@
     props = props || {};
     return {
       id: props.id || uid('chp'),
-      title: props.title || 'New chapter',
+      title: props.title || '',
       order: props.order === undefined ? 0 : props.order,
       summary: props.summary || ''
     };
@@ -245,6 +246,62 @@
     };
   }
 
+  /* ---------- the unit above a scene ----------
+     "Chapter" is only the default name for the unit that groups scenes:
+     the same work may be written in Acts, Parts, Books or Episodes. The
+     label is stored per project and every auto-generated title, section
+     head, tab and band reads it, so the whole interface follows the work
+     instead of lecturing it. An empty label falls back to 'Chapter'. */
+  var DEFAULT_UNIT_LABEL = 'Chapter';
+
+  function unitLabel(project) {
+    var l = project && project.meta && project.meta.unitLabel;
+    l = typeof l === 'string' ? l.trim() : '';
+    return l ? l.slice(0, 24) : DEFAULT_UNIT_LABEL;
+  }
+
+  function unitTitle(project, index) {
+    return unitLabel(project) + ' ' + (index + 1);
+  }
+
+  /* Chapters carry an order field, but the presentation order of the scenes
+     is the authority: a chapter's number is where its scenes first appear.
+     This keeps drag-and-drop honest — moving scenes can never leave the
+     chapter list disagreeing with the matrix. Chapters that own no scenes
+     keep their relative order at the end. */
+  function chapterSequence(project) {
+    var list = ((project && project.chapters) || []).filter(function (c) { return !!c; });
+    var seen = Object.create(null);
+    var unique = [];
+    var i;
+    for (i = 0; i < list.length; i++) {
+      if (!list[i].id || seen[list[i].id]) continue;
+      seen[list[i].id] = true;
+      unique.push(list[i]);
+    }
+    var byIdc = Object.create(null);
+    unique.forEach(function (c) { byIdc[c.id] = c; });
+
+    /* Walk the scenes in presentation order; a chapter takes its place the
+       first time one of its scenes shows up. */
+    var scenes = (project && project.scenes) || [];
+    var sorted = scenes.every(function (s) { return typeof s.order === 'number'; })
+      ? scenes.slice().sort(function (a, b) { return a.order - b.order; })
+      : scenes;
+    var used = Object.create(null);
+    var out = [];
+    for (i = 0; i < sorted.length; i++) {
+      var id = sorted[i] && sorted[i].chapterId;
+      if (!id || used[id]) continue;
+      var ch = byIdc[id];
+      if (!ch) continue;
+      used[id] = true;
+      out.push(ch);
+    }
+    var rest = unique.filter(function (c) { return !used[c.id]; });
+    return out.concat(rest);
+  }
+
   /* ---------- lookup helpers ---------- */
   function byId(list, id) {
     if (!id) return null;
@@ -281,6 +338,7 @@
       id: uid('prj'),
       title: 'Untitled story',
       author: '',
+      unitLabel: DEFAULT_UNIT_LABEL,
       created: nowISO(),
       modified: nowISO()
     }, p.meta || {});
@@ -320,13 +378,15 @@
       return t;
     });
 
+    /* Titles are left empty here: a chapter is numbered and named only once
+       its scenes' presentation order is known (see below). */
     p.chapters = (p.chapters || []).map(function (c, i) {
       c.id = c.id || uid('chp');
-      c.title = c.title || ('Chapter ' + (i + 1));
+      c.title = typeof c.title === 'string' ? c.title.trim() : '';
       if (typeof c.order !== 'number') c.order = i;
       c.summary = c.summary || '';
       return c;
-    }).sort(function (a, b) { return a.order - b.order; });
+    });
 
     p.scenes = (p.scenes || []).map(function (s, i) {
       s.id = s.id || uid('scn');
@@ -345,6 +405,15 @@
       s.tags = s.tags || [];
       return s;
     }).sort(function (a, b) { return a.order - b.order; });
+
+    /* The presentation order of the scenes decides the chapter order, so
+       the two can never disagree. Chapters with no scenes keep their
+       relative order at the end and are still numbered. */
+    p.chapters = chapterSequence(p);
+    p.chapters.forEach(function (c, i) {
+      c.order = i;
+      if (!c.title) c.title = unitTitle(p, i);
+    });
 
     p.cells = (p.cells || []).map(function (c) {
       c.id = c.id || uid('cel');
@@ -377,6 +446,7 @@
     var sceneIds = indexById(p.scenes);
     var charIds = indexById(p.entities.characters);
     var threadIds = indexById(p.entities.threads);
+    var chapterIds = indexById(p.chapters);
 
     p.cells = p.cells.filter(function (c) {
       return sceneIds[c.sceneId] && charIds[c.entityId];
@@ -389,6 +459,9 @@
     });
     p.scenes.forEach(function (s) {
       if (s.pov && !charIds[s.pov]) { s.pov = null; s.povIsNarrator = true; }
+      /* An ungrouped scene is a state the interface can show; a scene
+         pointing at a chapter that does not exist is not. */
+      if (s.chapterId && !chapterIds[s.chapterId]) s.chapterId = null;
     });
     return p.links;
   }
@@ -423,6 +496,10 @@
     if (project.scenes && !project.scenes.length) {
       warnings.push('Project has no scenes.');
     }
+    if (project.scenes && project.chapters &&
+        project.scenes.some(function (s) { return !s.chapterId; })) {
+      warnings.push('Some scenes belong to no ' + unitLabel(project).toLowerCase() + '.');
+    }
     if (project.meta && project.meta.schemaVersion > SCHEMA_VERSION) {
       errors.push(
         'Project uses schema version ' + project.meta.schemaVersion +
@@ -449,6 +526,9 @@
     compareStoryTime: compareStoryTime,
     timeLabel: timeLabel,
     sceneTime: sceneTime,
+    unitLabel: unitLabel,
+    unitTitle: unitTitle,
+    chapterSequence: chapterSequence,
 
     createProject: createProject,
     createCharacter: createCharacter,

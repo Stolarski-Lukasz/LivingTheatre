@@ -1,7 +1,8 @@
 /* LivingTheatre — inspector.
-   Right-hand detail panel. Two tabs, Scene and Cell, both always reachable:
-   the old layout hid scene attributes behind "no character selected", which
-   stranded them the moment a cell was clicked. */
+   Right-hand detail panel. Three tabs, Scene, Character and the project's
+   own name for the unit above a scene (Chapter by default), all always
+   reachable: the old layout hid scene attributes behind "no character
+   selected", which stranded them the moment a cell was clicked. */
 (function (LT) {
   'use strict';
 
@@ -25,10 +26,13 @@
       entityStats: Object,
       allScenes: Array,
       chapters: Array,
-      characters: Array
+      chapter: Object,
+      characters: Array,
+      unitLabel: String
     },
     emits: ['update-cell', 'update-note', 'set-presence', 'clear-cell',
-            'update-scene', 'update-character', 'remove-character',
+            'update-scene', 'update-chapter', 'update-character', 'remove-character',
+            'add-scene', 'new-chapter', 'move-chapter', 'remove-chapter', 'set-unit',
             'select-scene', 'move-scene', 'remove-scene', 'close'],
 
     template: `
@@ -36,6 +40,8 @@
   <div class="insp-tabs">
     <button :class="{ on: tab === 'scene' }" @click="tab = 'scene'"
             :disabled="!scene">Scene</button>
+    <button :class="{ on: tab === 'chapter' }" @click="tab = 'chapter'"
+            :disabled="!chapter" :title="'Options for this ' + unitLabel.toLowerCase()">{{ unitLabel }}</button>
     <button :class="{ on: tab === 'character' }" @click="tab = 'character'"
             :disabled="!entity" title="Character options">Character</button>
     <button :class="{ on: tab === 'cell' }" @click="tab = 'cell'"
@@ -44,7 +50,7 @@
     <button class="icon-btn" title="Close (Esc)" @click="$emit('close')">✕</button>
   </div>
 
-  <div v-if="!scene && !entity" class="insp-empty">
+  <div v-if="!scene && !entity && !chapter" class="insp-empty">
     <p class="insp-empty-mark">◧</p>
     <p>Select a scene, a cell or a character.</p>
     <p class="insp-hint">
@@ -55,8 +61,99 @@
   </div>
 
   <template v-else>
+    <!-- ============ scene tab ============ -->
+    <div v-if="tab === 'scene' && scene" class="insp-section">
+      <div class="insp-title">
+        <span>Scene {{ scene.order + 1 }}</span>
+        <span class="spacer"></span>
+        <button class="btn ghost icon" title="Move earlier" @click="$emit('move-scene', -1)">‹</button>
+        <button class="btn ghost icon" title="Move later" @click="$emit('move-scene', 1)">›</button>
+      </div>
+      <input class="insp-input" :value="scene.title" placeholder="Scene title"
+             @change="patchScene('title', $event.target.value)">
+      <div class="field-label">Story time</div>
+      <div class="insp-row">
+        <input class="insp-input" :value="scene.storyStart || ''" placeholder="start, e.g. 1.4"
+               @change="patchScene('storyStart', $event.target.value)">
+        <input class="insp-input" :value="scene.storyEnd || ''" placeholder="end"
+               @change="patchScene('storyEnd', $event.target.value)">
+      </div>
+      <div class="field-label">Mode</div>
+      <select class="insp-input" :value="scene.mode" @change="patchScene('mode', $event.target.value)">
+        <option v-for="m in modes" :key="m.id" :value="m.id">{{ m.label }}</option>
+      </select>
+      <div v-if="scene.mode !== 'linear'">
+        <div class="field-label">Anchor scene</div>
+        <select class="insp-input" :value="scene.sourceSceneId || ''"
+                @change="patchScene('sourceSceneId', $event.target.value)">
+          <option value="">— none —</option>
+          <option v-for="s in otherScenes" :key="s.id" :value="s.id">
+            Scene {{ s.order + 1 }} · {{ s.title }}
+          </option>
+        </select>
+      </div>
+      <div class="field-label">{{ unitLabel }}</div>
+      <select class="insp-input" :value="scene.chapterId || ''" @change="patchChapterId($event.target.value)">
+        <option value="">— none —</option>
+        <option v-for="ch in chapters" :key="ch.id" :value="ch.id">{{ ch.title }}</option>
+        <option value="__new">+ new {{ unitLabel.toLowerCase() }}…</option>
+      </select>
+      <div class="field-label">Perspective</div>
+      <select class="insp-input" :value="povValue" @change="patchPov($event.target.value)">
+        <option value="narrator">Narrator</option>
+        <option v-for="c in characters" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </select>
+      <div class="field-label">Place</div>
+      <input class="insp-input" :value="scene.placeLabel || ''" placeholder="e.g. Dom – kuchnia"
+             @change="patchScene('placeLabel', $event.target.value)">
+      <label class="insp-check">
+        <input type="checkbox" :checked="scene.hidden"
+               @change="patchScene('hidden', $event.target.checked)">
+        <span>hidden event (happens, but is not shown)</span>
+      </label>
+      <div class="field-label">Summary</div>
+      <textarea class="insp-textarea" :value="scene.summary" placeholder="What happens in this scene?"
+                @change="patchScene('summary', $event.target.value)"></textarea>
+      <div class="insp-actions">
+        <button class="btn danger" @click="removeScene">Delete scene</button>
+      </div>
+    </div>
+
+    <!-- ============ chapter tab ============ -->
+    <div v-else-if="tab === 'chapter' && chapter" class="insp-section">
+      <div class="insp-title">
+        <span>{{ unitLabel }} {{ unitNo }}</span>
+        <span class="spacer"></span>
+        <button class="btn ghost icon" title="Move earlier" @click="$emit('move-chapter', -1)">‹</button>
+        <button class="btn ghost icon" title="Move later" @click="$emit('move-chapter', 1)">›</button>
+      </div>
+      <input class="insp-input" :value="chapter.title" :placeholder="unitLabel + ' title'"
+             @change="$emit('update-chapter', { title: $event.target.value })">
+      <div class="field-label">Scenes</div>
+      <div class="insp-meta">
+        {{ chapterSceneCount }} scenes<span v-if="chapterFirstOrder !== null"> · first at scene {{ chapterFirstOrder + 1 }}</span><span v-if="chapterHiddenCount"> · {{ chapterHiddenCount }} hidden</span>
+      </div>
+      <div class="field-label">Summary</div>
+      <textarea class="insp-textarea" :value="chapter.summary"
+                :placeholder="'What this ' + unitLabel.toLowerCase() + ' does for the story.'"
+                @change="$emit('update-chapter', { summary: $event.target.value })"></textarea>
+      <div class="insp-actions">
+        <button class="btn" @click="$emit('add-scene', chapter.id)">+ new scene here</button>
+        <span class="spacer"></span>
+        <button class="btn danger" @click="removeChapter">Delete {{ unitLabel.toLowerCase() }}</button>
+      </div>
+      <div class="field-label">Unit name for this work</div>
+      <input class="insp-input" :value="unitLabel" placeholder="Chapter"
+             title="Chapter, Act, Part, Book, Episode — used everywhere in the interface"
+             @change="$emit('set-unit', $event.target.value)">
+      <p class="insp-hint">
+        The word for the unit above a scene. Every scene of the work is grouped
+        into one; scenes in none are listed under "No {{ unitLabel.toLowerCase() }}" in the sidebar.
+      </p>
+    </div>
+
     <!-- ============ character tab ============ -->
-    <div v-if="tab === 'character'" class="insp-section">
+    <div v-else-if="tab === 'character' && entity" class="insp-section">
       <div class="insp-title">
         <span class="swatch" :style="{ background: entity.color }"></span>
         <span>{{ entity.name }}</span>
@@ -143,63 +240,6 @@
       </div>
     </div>
 
-    <!-- ============ scene tab ============ -->
-    <div v-else-if="tab === 'scene' && scene" class="insp-section">
-      <div class="insp-title">
-        <span>Scene {{ scene.order + 1 }}</span>
-        <span class="spacer"></span>
-        <button class="btn ghost icon" title="Move earlier" @click="$emit('move-scene', -1)">‹</button>
-        <button class="btn ghost icon" title="Move later" @click="$emit('move-scene', 1)">›</button>
-      </div>
-      <input class="insp-input" :value="scene.title" placeholder="Scene title"
-             @change="patchScene('title', $event.target.value)">
-      <div class="field-label">Story time</div>
-      <div class="insp-row">
-        <input class="insp-input" :value="scene.storyStart || ''" placeholder="start, e.g. 1.4"
-               @change="patchScene('storyStart', $event.target.value)">
-        <input class="insp-input" :value="scene.storyEnd || ''" placeholder="end"
-               @change="patchScene('storyEnd', $event.target.value)">
-      </div>
-      <div class="field-label">Mode</div>
-      <select class="insp-input" :value="scene.mode" @change="patchScene('mode', $event.target.value)">
-        <option v-for="m in modes" :key="m.id" :value="m.id">{{ m.label }}</option>
-      </select>
-      <div v-if="scene.mode !== 'linear'">
-        <div class="field-label">Anchor scene</div>
-        <select class="insp-input" :value="scene.sourceSceneId || ''"
-                @change="patchScene('sourceSceneId', $event.target.value)">
-          <option value="">— none —</option>
-          <option v-for="s in otherScenes" :key="s.id" :value="s.id">
-            Scene {{ s.order + 1 }} · {{ s.title }}
-          </option>
-        </select>
-      </div>
-      <div class="field-label">Chapter</div>
-      <select class="insp-input" :value="scene.chapterId || ''"
-              @change="patchScene('chapterId', $event.target.value)">
-        <option v-for="ch in chapters" :key="ch.id" :value="ch.id">{{ ch.title }}</option>
-      </select>
-      <div class="field-label">Perspective</div>
-      <select class="insp-input" :value="povValue" @change="patchPov($event.target.value)">
-        <option value="narrator">Narrator</option>
-        <option v-for="c in characters" :key="c.id" :value="c.id">{{ c.name }}</option>
-      </select>
-      <div class="field-label">Place</div>
-      <input class="insp-input" :value="scene.placeLabel || ''" placeholder="e.g. Dom – kuchnia"
-             @change="patchScene('placeLabel', $event.target.value)">
-      <label class="insp-check">
-        <input type="checkbox" :checked="scene.hidden"
-               @change="patchScene('hidden', $event.target.checked)">
-        <span>hidden event (happens, but is not shown)</span>
-      </label>
-      <div class="field-label">Summary</div>
-      <textarea class="insp-textarea" :value="scene.summary" placeholder="What happens in this scene?"
-                @change="patchScene('summary', $event.target.value)"></textarea>
-      <div class="insp-actions">
-        <button class="btn danger" @click="removeScene">Delete scene</button>
-      </div>
-    </div>
-
     <!-- ============ cell tab ============ -->
     <div v-else class="insp-section">
       <template v-if="entity">
@@ -241,16 +281,19 @@
       var tab = Vue.ref('scene');
 
       /* The tab follows the selection kind: character options opens Character,
-         a character cell opens Cell, a scene header or strip cell opens Scene
-         — even when other selections are still set. */
+         a chapter opens the chapter tab, a character cell opens Cell, a scene
+         header or strip cell opens Scene — even when other selections are
+         still set. */
       Vue.watch(function () {
         return (props.selection && props.selection.kind) + ':' + (props.scene && props.scene.id) +
-          ':' + (props.entity && props.entity.id);
+          ':' + (props.entity && props.entity.id) + ':' + (props.chapter && props.chapter.id);
       }, function () {
         var kind = props.selection && props.selection.kind;
         if (kind === 'character' && props.entity) tab.value = 'character';
+        else if (kind === 'chapter' && props.chapter) tab.value = 'chapter';
         else if (kind === 'cell' && props.entity && props.scene) tab.value = 'cell';
         else if (props.scene) tab.value = 'scene';
+        else if (props.chapter) tab.value = 'chapter';
         else if (props.entity) tab.value = 'character';
         else tab.value = 'scene';
       });
@@ -259,6 +302,32 @@
       var presenceOrder = model.PRESENCE_ORDER;
       var presenceLabels = PRESENCE_LABELS;
       var palette = model.PALETTE;
+      var unitLabel = props.unitLabel || 'Chapter';
+
+      /* Where this chapter sits, measured against the scenes it owns. */
+      var unitNo = Vue.computed(function () {
+        var p = props.chapter;
+        if (!p) return 1;
+        for (var i = 0; i < props.chapters.length; i++) {
+          if (props.chapters[i].id === p.id) return i + 1;
+        }
+        return 1;
+      });
+      var chapterScenes = Vue.computed(function () {
+        if (!props.chapter) return [];
+        return (props.allScenes || []).filter(function (s) {
+          return s.chapterId === props.chapter.id;
+        });
+      });
+      var chapterSceneCount = Vue.computed(function () { return chapterScenes.value.length; });
+      var chapterFirstOrder = Vue.computed(function () {
+        var list = chapterScenes.value;
+        if (!list.length) return null;
+        return list.reduce(function (m, s) { return Math.min(m, s.order); }, list[0].order);
+      });
+      var chapterHiddenCount = Vue.computed(function () {
+        return chapterScenes.value.filter(function (s) { return s.hidden; }).length;
+      });
 
       var cellValue = Vue.computed(function () {
         return props.cell ? props.cell.text : '';
@@ -298,6 +367,18 @@
         }
       }
 
+      /* The "+ new chapter" option creates one and moves the scene into it;
+         the app layer does both, so the select settles on the new chapter. */
+      function patchChapterId(value) {
+        if (value === '__new') { emit('new-chapter'); return; }
+        emit('update-scene', { chapterId: value || null });
+      }
+
+      function removeChapter() {
+        if (!props.chapter) return;
+        emit('remove-chapter');
+      }
+
       function removeCharacter() {
         if (!props.entity) return;
         if (window.confirm('Remove "' + props.entity.name + '" and all of their cells?')) {
@@ -316,9 +397,16 @@
         currentPresence: currentPresence,
         povValue: povValue,
         otherScenes: otherScenes,
+        unitLabel: unitLabel,
+        unitNo: unitNo,
+        chapterSceneCount: chapterSceneCount,
+        chapterFirstOrder: chapterFirstOrder,
+        chapterHiddenCount: chapterHiddenCount,
         patchScene: patchScene,
         patchPov: patchPov,
+        patchChapterId: patchChapterId,
         removeScene: removeScene,
+        removeChapter: removeChapter,
         removeCharacter: removeCharacter
       };
     }

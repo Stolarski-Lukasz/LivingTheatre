@@ -262,18 +262,24 @@
       characters.push({ name: displayName, offstage: !!mentionMatch, values: values });
     });
 
-    /* ---- chapters (forward-fill merged spans) ---- */
+    /* ---- chapters (forward-fill merged spans) ----
+       A sheet with no chapter row at all says nothing about how the work is
+       divided, so its scenes stay ungrouped rather than being dropped into
+       an invented chapter. A row that is present but blank at the start is
+       different: that is an untitled span, and it is kept. */
     var chapters = [];
     var current = null;
     var chapterCol = header.chapter || [];
     var sceneRefs = [];
+    var hasChapterRow = !!header.chapter && chapterCol.some(function (v) {
+      return String(v === undefined ? '' : v).trim() !== '';
+    });
     for (var i = 0; i < sceneCount; i++) {
-      var raw = (chapterCol[i] || '').trim();
+      var raw = String(chapterCol[i] === undefined ? '' : chapterCol[i]).trim();
       if (raw) {
         current = model.createChapter({ title: raw, order: chapters.length });
         chapters.push(current);
-      }
-      if (!current) {
+      } else if (!current && hasChapterRow) {
         current = model.createChapter({ title: 'Untitled', order: 0 });
         chapters.push(current);
       }
@@ -359,7 +365,7 @@
       if (hidden) title = title.trim().slice(1, -1).trim();
 
       return model.createScene({
-        chapterId: ref.chapter.id,
+        chapterId: ref.chapter ? ref.chapter.id : null,
         order: i,
         title: title,
         storyStart: times[i] || null,

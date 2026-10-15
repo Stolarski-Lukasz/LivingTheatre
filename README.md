@@ -45,6 +45,9 @@ Details that matter in practice:
 
 - **Sparse rows are forward-filled.** A place or POV written once in a merged
   cell applies to the following columns until it changes.
+- **A sheet with no chapter row leaves its scenes ungrouped** — no chapter is
+  invented for you. A row that *is* present but blank at the start is an
+  untitled span and is kept.
 - **`x` means "present but idle"; prose means "present and acting on the story".**
   A blank cell means absent. The three states are what the colours encode.
 - **`(Name)` marks someone mentioned but never on stage** — they get a track
@@ -65,9 +68,9 @@ Details that matter in practice:
 - **Zoom is continuous** — a slider, `ctrl+wheel` (anchored at the pointer),
   `+` / `-`, and `0` to reset. Columns scale from 18px (dots only) to 420px
   (full inline prose); cell text, note dots and truncation all follow.
-- **One scroll container.** The scene headers stick to the top, the track
-  labels stick to the left, and the ruler sticks to the bottom — no scroll
-  sync, no drift.
+- **One scroll container.** The scene headers stick to the top (below the
+  chapter band), the track labels stick to the left, and the ruler sticks to
+  the bottom — no scroll sync, no drift.
 - **Cells** — click selects, alt+click cycles presence
   (absent → idle → active), double-click writes what the character does
   (`ctrl+enter` or blur to commit, `esc` to cancel).
@@ -90,10 +93,30 @@ Details that matter in practice:
   pack the assistant will use later.
 - **Sidebar** — collapsible (the chevron at the left of the toolbar or
   `ctrl+B`) and resizable (drag its right edge, double-click to reset). It
-  lists scenes and the report, and scrolls. The inspector on the right works
-  the same way (its chevron or `ctrl+I`, drag its left edge to resize). Both
-  widths are remembered between sessions. The toolbar's sun/moon icon
-  switches between the dark and light themes.
+  lists the structure of the work and the report, and scrolls. The inspector
+  on the right works the same way (its chevron or `ctrl+I`, drag its left edge
+  to resize). Both widths are remembered between sessions. The toolbar's
+  sun/moon icon switches between the dark and light themes.
+- **Chapters are the unit above a scene**, and the name is the work's
+  business: `meta.unitLabel` holds the word (*Chapter*, *Act*, *Part*,
+  *Book*, *Episode*), editable in the inspector's chapter tab. Every heading,
+  the sidebar, the matrix band and the auto-titled units follow it. `+` in the
+  sidebar head adds one; the chapter's `‹ ›` move its whole block of scenes;
+  deleting one keeps its scenes, ungrouped, under *No chapter*. A chapter's
+  number is simply where its scenes first appear in the presentation, so
+  dragging scenes around can never desynchronise the two.
+- **The chapter band** above the column headers shows one block per
+  uninterrupted run of a chapter — its title, its scene count, click to open
+  the chapter. It sticks to the top while the columns scroll past.
+- **Dragging a scene header** reorders the presentation; dropping it onto
+  another chapter's run moves the scene into that chapter, so the groups stay
+  contiguous.
+- **Inspector** — four tabs, all always reachable: the scene tab holds title,
+  story time, mode + anchor, chapter, perspective, place, hidden flag and
+  summary; the chapter tab holds the unit's title, summary, position and
+  scenes, plus the unit-name field for the whole work; the character tab holds
+  the dramaturgy card; and the cell tab holds presence, diegetic prose and
+  author note.
 - **Ruler** — three bands: *order* (presentation, aligned with the columns),
   *story* (connectors from each column to its position on the story-time axis),
   and *when* (the story-time axis itself, proportionally ticked at chapter
@@ -105,10 +128,6 @@ Details that matter in practice:
   *narrator*, place and story time are text fields. They are scene
   attributes, so committing one patches the scene — the same as the
   inspector's Scene tab.
-- **Inspector** — two tabs, *Scene* and *Cell*, both always reachable: the
-  scene tab holds title, story time, mode + anchor, chapter, perspective,
-  place, hidden flag and summary; the cell tab holds presence, diegetic prose
-  and author note.
 - **Minimap** — under the matrix, with a window showing the visible span.
 - **Report** — the sidebar flags characters active in two scenes that
   overlap in story time but sit in different places, and non-linear scenes
@@ -124,7 +143,10 @@ Details that matter in practice:
 | alt+click cell | cycle presence |
 | double-click cell | edit what the character does |
 | double-click strip cell | edit perspective / place / story time |
-| drag scene header | reorder the presentation |
+| drag scene header | reorder the presentation, or move it into another chapter |
+| click a chapter row or a band block | select the chapter |
+| double-click a chapter name | rename it |
+| click a chapter's twisty | collapse / expand its scenes |
 | double-click track name | rename a character |
 | ctrl+B | show / hide the sidebar |
 | ctrl+I | show / hide the inspector |
@@ -182,14 +204,16 @@ packages they name. Both exit non-zero on failure.
 
 ```
 node tools/test-boot.mjs       # jsdom: boots the real app, drives the store,
-                               # clicks, drags, keyboard — 93 assertions
+                               # clicks, drags, keyboard — 252 assertions
 node tools/test-browser.mjs    # headless Chromium: real layout, sticky
-                               # headers, zoom, reload, screenshots
+                               # headers, chapter band, zoom, reload, screenshots
 ```
 
 They resolve their dependencies from a local `node_modules` (run
 `npm install jsdom playwright-core` inside the project, or point `LT_TOOLS` at
-a directory that has them).
+a directory that has them). `test-browser.mjs` uses the Chromium that ships
+with Playwright, or the one named by `LT_CHROMIUM`
+(`LT_CHROMIUM=/usr/bin/google-chrome`).
 
 ## Data format
 
@@ -208,11 +232,26 @@ inspector's Character tab edits, and the card `contextForScene()` sends to
 the assistant. (The unused `arcs: []` array from the first draft was
 replaced by `arc`; `normalize()` flattens old files on load.)
 
+A chapter carries: `id, title, order, summary`, and belongs to the work rather
+than to a scene: `meta.unitLabel` is the word for it, default `Chapter`. A
+scene's `chapterId` may be `null`, which means "ungrouped" — a state the
+interface shows rather than repairs, because a sheet that says nothing about
+chapters should not be second-guessed. `model.chapterSequence()` orders
+chapters by where their scenes first appear; `normalize()` rewrites `order`
+from it and clears a `chapterId` whose chapter no longer exists, so the two
+orderings can never drift apart.
+
 `model.normalize()` fills missing fields, sorts orderings and drops dangling
 references, so a hand-edited or externally generated file cannot break the app.
 Django will serve the same shape later.
 
 ## Known limits
+
+- **One level of units.** Chapters group scenes; there is no *Book → Chapter*
+  nesting, and one work has one unit term. `parentId` and a second label are
+  the natural extension.
+- **A chapter with no scenes has no position.** It sorts after the ones that
+  own scenes, and its `‹ ›` stay disabled until it has scenes to move.
 
 - **Story-time granularity.** Compound stamps (`1.10`, `2.3`) are ordered as
   chapter-then-beat, and the ruler maps them proportionally. Chapter 1's twelve

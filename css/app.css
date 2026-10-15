@@ -265,6 +265,71 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
   text-transform: uppercase;
   user-select: none;
 }
+.rail-head .icon-btn.always { opacity: 0.5; font-weight: 700; }
+.rail-head:hover .icon-btn { opacity: 1; }
+
+.track-sub {
+  font: 9.5px/1 var(--mono);
+  color: var(--faint);
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 2px 5px;
+  flex: none;
+}
+
+/* the chapter rows of the structure tree: a unit and its scenes */
+.chapter-row { font-weight: 600; }
+.chapter-row .track-name { overflow: hidden; }
+.chapter-row .chapter-no {
+  font: 700 10px/1 var(--mono);
+  color: var(--faint);
+  min-width: 12px;
+  text-align: right;
+  flex: none;
+}
+.chapter-row.selected .chapter-no { color: var(--accent); }
+.track-row.static { cursor: default; }
+
+.twisty {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--faint);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s;
+}
+.twisty:hover { background: var(--hover); color: var(--ink); }
+.twisty.open { transform: rotate(-90deg); }
+
+.track-row.sub-row { padding-left: 18px; }
+.track-row.sub-row:hover { background: var(--bg2); }
+.sub-empty {
+  padding: 2px 10px 6px 30px;
+  color: var(--faint);
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* per-row tools: invisible until the row is hovered, like the matrix rows */
+.row-tools {
+  display: none;
+  align-items: center;
+  gap: 1px;
+  flex: none;
+}
+.track-row:hover .row-tools { display: inline-flex; }
+.row-tools .icon-btn { opacity: 0.8; font-size: 12px; font-weight: 700; line-height: 1; }
+.row-tools .icon-btn:hover { opacity: 1; }
+.row-tools .icon-btn:disabled { display: none; }
 
 .track-row {
   display: flex;
@@ -369,11 +434,10 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
   height: var(--head-h);
   flex: none;
 }
-
 .m-corner {
   position: sticky;
   left: 0;
-  top: 0;
+  top: var(--band-h);
   z-index: 40;
   width: var(--rail-w);
   flex: none;
@@ -399,7 +463,7 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
 
 .m-colhead {
   position: sticky;
-  top: 0;
+  top: var(--band-h);
   z-index: 30;
   flex: none;
   display: flex;
@@ -479,6 +543,77 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
 }
 .ch-foot { margin-top: 1px; }
 .ch-time { font: 9.5px/1 var(--mono); color: var(--faint); white-space: nowrap; }
+
+/* ---------- the chapter band ----------
+   One block per uninterrupted run of a chapter, above the column headers,
+   so the size of each unit is visible without counting columns. Like the
+   headers themselves it sticks to the top and its corner stays put. */
+.m-chapterrow {
+  position: sticky;
+  top: 0;
+  z-index: 35;
+  display: flex;
+  height: 22px;
+  flex: none;
+  min-width: 0;
+  background: var(--bg0);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+.m-bandhead {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 41;
+  width: var(--rail-w);
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: var(--bg1);
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  box-shadow: inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line);
+}
+
+.m-chapterblock {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 6px;
+  background: var(--bg1);
+  box-shadow: inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line);
+  border-top: 2px solid transparent;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.m-chapterblock:hover { background: var(--bg2); }
+.m-chapterblock.selected {
+  background: var(--bg2);
+  border-top-color: var(--accent);
+}
+.m-chapterblock.none { background: var(--bg0); cursor: default; }
+.m-chapterblock .band-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dim);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+.m-chapterblock.none .band-title { color: var(--faint); font-style: italic; }
+.m-chapterblock .band-count {
+  font: 9.5px/1 var(--mono);
+  color: var(--faint);
+  flex: none;
+}
 
 .m-dropline {
   position: absolute;
@@ -897,6 +1032,13 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
   margin-bottom: 9px;
 }
 .insp-sub { color: var(--faint); text-transform: none; letter-spacing: 0; }
+/* read-only facts beside a field label: scene counts, positions */
+.insp-meta {
+  color: var(--dim);
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding-bottom: 2px;
+}
 
 .insp-empty { padding: 28px 18px; color: var(--dim); text-align: center; }
 .insp-empty-mark { font-size: 26px; margin: 0 0 8px; color: var(--faint); }
@@ -983,6 +1125,7 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
   white-space: nowrap;
 }
 .statusbar .dot-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--line-strong); flex: none; }
+.status-warn { color: var(--warn); }
 .status-msg.dim { color: var(--faint); }
 .status-msg.ok { color: var(--ok); }
 .status-msg.error { color: var(--danger); }

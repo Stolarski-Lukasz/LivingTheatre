@@ -22,13 +22,14 @@
       chapterIndex: Object,
       zoom: Number,
       railW: Number,
+      unitLabel: String,
       selection: Object,
       showPov: Boolean,
       showPlaces: Boolean,
       showTime: Boolean,
       filters: Object
     },
-    emits: ['select-scene', 'select-cell', 'select-entity', 'cycle-cell', 'edit-cell',
+    emits: ['select-scene', 'select-chapter', 'select-cell', 'select-entity', 'cycle-cell', 'edit-cell',
             'add-character', 'rename-character', 'patch-scene', 'drop-scene', 'viewport'],
 
     components: {
@@ -38,6 +39,22 @@
     template: `
 <div class="scroll-stage" ref="scroller" @scroll.passive="onScroll" @wheel="onWheel">
   <div class="m-canvas" :style="canvasStyle">
+
+    <div class="m-chapterrow">
+      <div class="m-bandhead">
+        <span class="corner-title">{{ unitLabel }}</span>
+        <span class="corner-count">{{ chapterRuns.length }}</span>
+      </div>
+      <div v-for="(r, i) in chapterRuns" :key="'run' + i"
+           class="m-chapterblock"
+           :class="{ selected: selection.chapterId === r.id, none: !r.id }"
+           :style="{ width: r.count * zoom + 'px' }"
+           :title="r.title"
+           @click="r.id && $emit('select-chapter', r.id)">
+        <span class="band-title">{{ r.title }}</span>
+        <span class="band-count">{{ r.count }}</span>
+      </div>
+    </div>
 
     <div class="m-headrow">
       <div class="m-corner">
@@ -53,7 +70,7 @@
            @click="onHeadClick($event, s)">
         <div class="ch-line">
           <span class="ch-no">{{ s.order + 1 }}</span>
-          <span v-if="chapterOf(s)" class="ch-chapter">{{ chapterOf(s).title }}</span>
+          <span v-if="isRunStart(s)" class="ch-chapter">{{ runOf(s).title }}</span>
           <span v-if="s.mode !== 'linear'" class="ch-flag" :title="'mode: ' + s.mode">{{ modeFlag(s) }}</span>
           <span v-if="s.hidden" class="ch-flag hidden" title="hidden event — the reader never sees this">H</span>
         </div>
@@ -293,24 +310,56 @@
         return cls.join(' ');
       }
 
-      /* ---------- column header ---------- */
-      var chapterFirsts = Vue.computed(function () {
-        var seen = Object.create(null);
-        var firsts = Object.create(null);
-        props.scenes.forEach(function (s) {
-          if (!seen[s.chapterId]) { seen[s.chapterId] = true; firsts[s.id] = true; }
+      /* ---------- chapter band ----------
+         One block per uninterrupted run of a chapter in the presentation,
+         so the size of each unit is visible without reading the columns.
+         Scenes nobody has grouped share a single "none" block. */
+      var chapterRuns = Vue.computed(function () {
+        var out = [];
+        props.scenes.forEach(function (s, i) {
+          var key = s.chapterId || '';
+          var last = out[out.length - 1];
+          if (last && last.key === key) {
+            last.count++;
+            last.last = s.order;
+            return;
+          }
+          var ch = key ? props.chapterIndex[key] : null;
+          out.push({
+            key: key,
+            id: key || null,
+            count: 1,
+            start: s.order,
+            last: s.order,
+            order: i,
+            title: ch ? ch.title : '— no ' + props.unitLabel.toLowerCase() + ' —'
+          });
         });
-        return firsts;
+        return out;
       });
 
       function chapterOf(s) {
-        return chapterFirsts.value[s.id] ? props.chapterIndex[s.chapterId] || null : null;
+        return props.chapterIndex[s.chapterId] || null;
+      }
+
+      /* A column that opens a chapter carries its name, so the chapter of the
+         columns on screen is never lost to a horizontal scroll. */
+      var runByOrder = Vue.computed(function () {
+        var map = Object.create(null);
+        chapterRuns.value.forEach(function (r) { map[r.start] = r; });
+        return map;
+      });
+      function runOf(s) {
+        return runByOrder.value[s.order] || null;
+      }
+      function isRunStart(s) {
+        return runOf(s) !== null;
       }
 
       function colTitle(s) {
         var parts = ['scene ' + (s.order + 1) + (s.title ? ': ' + s.title : '')];
         var ch = chapterOf(s);
-        if (ch) parts.push('chapter: ' + ch.title);
+        if (ch) parts.push((props.unitLabel || 'chapter').toLowerCase() + ': ' + ch.title);
         if (s.storyStart) parts.push('story time: ' + s.storyStart + (s.storyEnd ? ' → ' + s.storyEnd : ''));
         if (s.mode !== 'linear') parts.push('mode: ' + s.mode);
         if (s.hidden) parts.push('hidden event — not shown to the reader');
@@ -355,7 +404,16 @@
         drag.sceneId = null;
         if (!wasDragging || sceneId === null) return;
         drag.suppressClick = true;
-        emit('drop-scene', { sceneId: sceneId, to: to });
+        /* The column on the landing side decides which chapter the scene
+           joins: dropping onto another chapter's run moves it into that
+           chapter, so the groups stay contiguous. */
+        var landingIdx = to > drag.from ? Math.min(props.scenes.length - 1, to + 1) : to;
+        var landing = props.scenes[Math.max(0, landingIdx)];
+        emit('drop-scene', {
+          sceneId: sceneId,
+          to: to,
+          chapterId: landing ? landing.chapterId || null : null
+        });
       }
 
       function onHeadClick(e, s) {
@@ -592,6 +650,9 @@
         stripTitle: stripTitle,
         stripClass: stripClass,
         chapterOf: chapterOf,
+        chapterRuns: chapterRuns,
+        runOf: runOf,
+        isRunStart: isRunStart,
         colTitle: colTitle,
         modeFlag: modeFlag,
         onHeadDown: onHeadDown,
