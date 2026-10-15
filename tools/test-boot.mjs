@@ -325,7 +325,7 @@ await (async () => {
   check('rail scene click selects', !!s.selection.sceneId);
 
   /* theme button */
-  const themeBtn = [...doc.querySelectorAll('.topbar .btn.icon')].find((b) => b.textContent.includes('◐'));
+  const themeBtn = doc.querySelector('.topbar [aria-label="Toggle theme"]');
   fire(themeBtn, 'click');
   await flush();
   eq('topbar theme toggle', doc.documentElement.getAttribute('data-theme'), 'light');
@@ -344,7 +344,7 @@ await (async () => {
   check('modal closed', !doc.querySelector('.modal-backdrop'));
 
   /* help modal via ? button */
-  const helpBtn = [...doc.querySelectorAll('.topbar .btn.icon')].find((b) => b.textContent.trim() === '?');
+  const helpBtn = doc.querySelector('.topbar [aria-label="Toggle help"]');
   fire(helpBtn, 'click');
   await flush();
   check('help modal opens', !!doc.querySelector('.help-table'));
@@ -423,7 +423,7 @@ await (async () => {
 
   await flush();
   console.log('\n== rail collapse & resize ==');
-  const railToggle = [...doc.querySelectorAll('.topbar .btn')].find((b) => b.classList.contains('icon') && (b.textContent.trim() === '‹' || b.textContent.trim() === '›'));
+  const railToggle = doc.querySelector('.topbar [aria-label="Toggle sidebar"]');
   check('rail toggle button exists', !!railToggle);
   check('rail visible initially', !!doc.querySelector('.rail-wrap'));
   const shell = doc.querySelector('.shell');
@@ -492,7 +492,7 @@ await (async () => {
     await flush();
     check('drag resizes inspector', s.inspectorW === 360, 'w=' + s.inspectorW);
   }
-  const inspToggle = [...doc.querySelectorAll('.topbar .btn.icon')].find((b) => b.textContent.trim() === '›' || b.textContent.trim() === '‹');
+  const inspToggle = doc.querySelector('.topbar [aria-label="Toggle inspector"]');
   key('i', { ctrlKey: true });
   await flush();
   check('ctrl+I hides inspector', !doc.querySelector('.inspector-wrap'));

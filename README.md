@@ -71,11 +71,12 @@ Details that matter in practice:
   and remove buttons. Characters are deliberately **not** duplicated in the
   sidebar; the matrix is where they live. The sidebar width is remembered
   between sessions.
-- **Sidebar** — collapsible (`‹` in the toolbar or `ctrl+B`) and resizable
-  (drag its right edge, double-click to reset). It lists scenes and the
-  report, and scrolls. The inspector on the right works the same way
-  (`›` or `ctrl+I`, drag its left edge to resize). Both widths are
-  remembered between sessions.
+- **Sidebar** — collapsible (the chevron at the left of the toolbar or
+  `ctrl+B`) and resizable (drag its right edge, double-click to reset). It
+  lists scenes and the report, and scrolls. The inspector on the right works
+  the same way (its chevron or `ctrl+I`, drag its left edge to resize). Both
+  widths are remembered between sessions. The toolbar's sun/moon icon
+  switches between the dark and light themes.
 - **Ruler** — three bands: *order* (presentation, aligned with the columns),
   *story* (connectors from each column to its position on the story-time axis),
   and *when* (the story-time axis itself, proportionally ticked at chapter

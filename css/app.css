@@ -151,7 +151,9 @@ body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
 .btn.ghost:hover { background: var(--bg2); }
 .btn.danger { color: var(--danger); }
 .btn.danger:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
-.btn.icon { width: 27px; padding: 0; justify-content: center; }
+.btn.icon { width: 30px; padding: 0; justify-content: center; font-size: 15px; }
+.btn.icon svg { display: block; flex: none; width: 17px; height: 17px; }
+.btn.icon.icon-lg svg { width: 18px; height: 18px; }
 
 .switch {
   display: inline-flex;

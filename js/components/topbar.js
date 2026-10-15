@@ -28,8 +28,14 @@
 
     template: `
 <header class="topbar">
-  <button class="btn ghost icon" :title="railOpen ? 'Hide sidebar (Ctrl+B)' : 'Show sidebar (Ctrl+B)'"
-          @click="$emit('toggle-rail')">{{ railOpen ? '‹' : '›' }}</button>
+  <button class="btn ghost icon icon-lg" aria-label="Toggle sidebar"
+          :title="railOpen ? 'Hide sidebar (Ctrl+B)' : 'Show sidebar (Ctrl+B)'"
+          @click="$emit('toggle-rail')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path :d="railOpen ? 'm15 18-6-6 6-6' : 'm9 18 6-6-6-6'"/>
+    </svg>
+  </button>
   <span class="brand"><span class="dot"></span>LivingTheatre</span>
   <div class="divider-v"></div>
 
@@ -42,8 +48,22 @@
   <button class="btn ghost" title="Export project JSON (Ctrl+E)" @click="$emit('export-json')">Export</button>
 
   <div class="divider-v"></div>
-  <button class="btn ghost icon" title="Undo (Ctrl+Z)" :disabled="!canUndo" @click="$emit('undo')">↶</button>
-  <button class="btn ghost icon" title="Redo (Ctrl+Shift+Z)" :disabled="!canRedo" @click="$emit('redo')">↷</button>
+  <button class="btn ghost icon icon-lg" aria-label="Undo" title="Undo (Ctrl+Z)" :disabled="!canUndo"
+          @click="$emit('undo')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 14 4 9l5-5"/>
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>
+    </svg>
+  </button>
+  <button class="btn ghost icon icon-lg" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" :disabled="!canRedo"
+          @click="$emit('redo')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="m15 14 5-5-5-5"/>
+      <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/>
+    </svg>
+  </button>
 
   <span class="spacer"></span>
 
@@ -74,11 +94,43 @@
   <button class="btn" title="Add a scene at the end" @click="$emit('add-scene')">+ Scene</button>
 
   <div class="divider-v"></div>
-  <button class="btn ghost icon" title="Keyboard & mouse help" @click="$emit('open-help')">?</button>
-  <button class="btn ghost icon" :title="theme === 'dark' ? 'Switch to light' : 'Switch to dark'"
-          @click="$emit('toggle-theme')">◐</button>
-  <button class="btn ghost icon" :title="inspectorOpen ? 'Hide inspector' : 'Show inspector'"
-          @click="$emit('toggle-inspector')">{{ inspectorOpen ? '›' : '‹' }}</button>
+  <button class="btn ghost icon icon-lg" aria-label="Toggle help" title="Keyboard & mouse help"
+          @click="$emit('open-help')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9.2"/>
+      <path d="M9.2 9.2a2.8 2.8 0 1 1 3.6 2.7c-.8.3-1.2 1-1.2 1.9"/>
+      <path d="M12 17h.01"/>
+    </svg>
+  </button>
+  <button class="btn ghost icon icon-lg" aria-label="Toggle theme"
+          :title="theme === 'dark' ? 'Switch to light' : 'Switch to dark'"
+          @click="$emit('toggle-theme')">
+    <svg v-if="theme === 'dark'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3a6.4 6.4 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+    </svg>
+    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2.5"/>
+      <path d="M12 19.5V22"/>
+      <path d="m4.93 4.93 1.77 1.77"/>
+      <path d="m17.3 17.3 1.77 1.77"/>
+      <path d="M2 12h2.5"/>
+      <path d="M19.5 12H22"/>
+      <path d="m6.7 17.3-1.77 1.77"/>
+      <path d="m19.07 4.93-1.77 1.77"/>
+    </svg>
+  </button>
+  <button class="btn ghost icon icon-lg" aria-label="Toggle inspector"
+          :title="inspectorOpen ? 'Hide inspector (Ctrl+I)' : 'Show inspector (Ctrl+I)'"
+          @click="$emit('toggle-inspector')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path :d="inspectorOpen ? 'm9 18 6-6-6-6' : 'm15 18-6-6 6-6'"/>
+    </svg>
+  </button>
 </header>`
   };
 })(window.LT = window.LT || {});

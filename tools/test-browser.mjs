@@ -281,7 +281,7 @@ check('rail shows scenes only', railBefore.rail && railBefore.sceneRows === 23 &
 check('add-character row in matrix', railBefore.addRow);
 check('character rows in matrix', railBefore.charRowheads === 9, 'rows=' + railBefore.charRowheads);
 
-await page.click('.topbar .btn.icon >> text="‹"');
+await page.click('.topbar [aria-label="Toggle sidebar"]');
 await page.waitForTimeout(150);
 const collapsed = await page.evaluate(() => ({
   rail: !!document.querySelector('.rail-wrap'),
@@ -292,7 +292,7 @@ check('stage widens when rail collapses', collapsed.stageW > railBefore.stageW +
   railBefore.stageW + ' -> ' + collapsed.stageW);
 await page.screenshot({ path: path.join(shots, '10-rail-collapsed.png') });
 
-await page.click('.topbar .btn.icon >> text="›"');
+await page.click('.topbar [aria-label="Toggle sidebar"]');
 await page.waitForTimeout(150);
 const reopened = await page.evaluate(() => !!document.querySelector('.rail-wrap'));
 check('toggle re-opens rail', reopened);
