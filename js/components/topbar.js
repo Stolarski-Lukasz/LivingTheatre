@@ -14,6 +14,7 @@
       zoom: Number,
       zoomMin: Number,
       zoomMax: Number,
+      railOpen: Boolean,
       showPov: Boolean,
       showPlaces: Boolean,
       showTime: Boolean,
@@ -22,11 +23,13 @@
       theme: String
     },
     emits: ['rename-project', 'open-library', 'import-sheet', 'export-json', 'undo', 'redo',
-            'toggle-strip', 'zoom', 'filter', 'add-scene', 'toggle-inspector',
+            'toggle-strip', 'toggle-rail', 'zoom', 'filter', 'add-scene', 'toggle-inspector',
             'toggle-theme', 'open-help'],
 
     template: `
 <header class="topbar">
+  <button class="btn ghost icon" :title="railOpen ? 'Hide sidebar (Ctrl+B)' : 'Show sidebar (Ctrl+B)'"
+          @click="$emit('toggle-rail')">{{ railOpen ? '‹' : '›' }}</button>
   <span class="brand"><span class="dot"></span>LivingTheatre</span>
   <div class="divider-v"></div>
 

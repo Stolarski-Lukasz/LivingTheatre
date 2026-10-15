@@ -75,7 +75,6 @@ body.file-over::after {
 .shell {
   display: grid;
   grid-template-rows: 44px 1fr var(--status-h);
-  grid-template-columns: var(--rail-w) 1fr var(--inspector-w);
   grid-template-areas:
     "bar    bar       bar"
     "rail   stage     inspector"
@@ -83,8 +82,8 @@ body.file-over::after {
   height: 100vh;
 }
 
-.shell.no-inspector { grid-template-columns: var(--rail-w) 1fr 0; }
-.shell.no-inspector .inspector { display: none; }
+body.col-resizing { cursor: col-resize; user-select: none; }
+body.col-resizing .rail-resizer { opacity: 0.6; background: var(--accent); }
 
 /* ---------- top bar ---------- */
 .topbar {
@@ -218,14 +217,36 @@ body.file-over::after {
 }
 
 /* ---------- left rail ---------- */
-.rail {
+.rail-wrap {
   grid-area: rail;
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.rail {
+  flex: 1 1 auto;
   background: var(--bg1);
   border-right: 1px solid var(--line);
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
 }
+
+.rail-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 60;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.rail-resizer:hover { opacity: 0.5; background: var(--accent); }
 
 .rail-section { border-bottom: 1px solid var(--line); }
 
@@ -476,19 +497,57 @@ body.file-over::after {
   letter-spacing: 0.6px;
   text-transform: uppercase;
 }
-.m-rowhead.offstage { opacity: 0.55; }
-.m-rowhead:hover { background: var(--bg2); }
-.m-rowhead.stripe:hover { background: var(--bg0); }
 
-.rh-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rh-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .rh-count {
-  margin-left: auto;
   font: 9.5px/1 var(--mono);
   color: var(--faint);
   background: var(--bg2);
   border-radius: 8px;
   padding: 2px 5px;
   flex: none;
+}
+.rh-tools { display: none; align-items: center; gap: 2px; flex: none; }
+.rh-tools .icon-btn { opacity: 1; }
+.m-rowhead:hover .rh-tools { display: inline-flex; }
+.m-rowhead:hover .rh-count { display: none; }
+.m-rowhead.offstage { opacity: 0.55; }
+.m-rowhead:hover { background: var(--bg2); }
+.m-rowhead.stripe:hover { background: var(--bg0); }
+.m-rowhead.special .rh-name { font-style: italic; color: var(--dim); }
+
+.rh-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--bg0);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 2px 5px;
+  color: var(--ink);
+  font-size: 12px;
+  outline: none;
+}
+
+/* add-character row above the tracks */
+.m-addrow { height: 26px; }
+.m-rowhead.add-rowhead {
+  cursor: pointer;
+  color: var(--faint);
+  font-size: 11px;
+  gap: 6px;
+  font-weight: 600;
+}
+.m-rowhead.add-rowhead:hover { color: var(--ink); background: var(--bg2); }
+.add-plus { font-size: 13px; font-weight: 800; line-height: 1; }
+.m-addcell {
+  flex: none;
+  box-shadow: inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line);
 }
 
 /* ---------- cells ---------- */
@@ -694,8 +753,30 @@ body.file-over::after {
 }
 
 /* ---------- inspector ---------- */
-.inspector {
+.inspector-wrap {
   grid-area: inspector;
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.inspector-resizer {
+  position: absolute;
+  top: 0;
+  left: -3px;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 60;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.inspector-resizer:hover { opacity: 0.5; background: var(--accent); }
+
+.inspector {
+  flex: 1 1 auto;
   background: var(--bg1);
   border-left: 1px solid var(--line);
   overflow-y: auto;
@@ -926,10 +1007,3 @@ body.file-over::after {
 .help-note { font-size: 11.5px; color: var(--dim); line-height: 1.6; margin: 14px 0 0; }
 .help-note b { color: var(--ink); }
 
-/* ---------- responsive ---------- */
-@media (max-width: 1180px) {
-  .shell { grid-template-columns: 0 1fr 320px; }
-  .shell .rail { display: none; }
-  .shell.no-inspector { grid-template-columns: 200px 1fr 0; }
-  .shell.no-inspector .rail { display: block; }
-}

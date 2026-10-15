@@ -31,6 +31,8 @@
       var railW = Vue.ref(232);
       var inspectorOpen = Vue.ref(true);
       var viewport = Vue.ref({ start: 0, end: 1 });
+      var resizing = Vue.ref(false);
+      var narrow = Vue.ref(false);
 
       a.restoreSession();
 
@@ -50,6 +52,21 @@
 
       var report = Vue.computed(function () {
         return LT.analytics.fullReport(s.project);
+      });
+
+      /* The rail yields to the inspector on narrow screens instead of
+         squeezing both into the middle. */
+      var mql = typeof window.matchMedia === 'function'
+        ? window.matchMedia('(max-width: 1180px)') : null;
+      function applyNarrow() { narrow.value = !!(mql && mql.matches); }
+      var railVisible = Vue.computed(function () {
+        return s.railOpen && !(narrow.value && inspectorOpen.value);
+      });
+      var shellStyle = Vue.computed(function () {
+        return {
+          gridTemplateColumns: (railVisible.value ? s.railW + 'px' : '0px') +
+            ' 1fr ' + (inspectorOpen.value ? s.inspectorW + 'px' : '0px')
+        };
       });
 
       var totals = Vue.computed(function () {
@@ -312,6 +329,57 @@
         a.persist();
       }
 
+      /* ---------- rail ---------- */
+      function toggleRail() { a.toggleRail(); }
+
+      function startRailResize(e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        resizing.value = true;
+        document.body.classList.add('col-resizing');
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+        window.addEventListener('pointermove', onRailResize);
+        window.addEventListener('pointerup', endRailResize);
+      }
+
+      function onRailResize(e) {
+        if (!resizing.value) return;
+        a.setRailWidth(e.clientX);
+      }
+
+      function endRailResize() {
+        resizing.value = false;
+        document.body.classList.remove('col-resizing');
+        window.removeEventListener('pointermove', onRailResize);
+        window.removeEventListener('pointerup', endRailResize);
+      }
+
+      function resetRailWidth() { a.setRailWidth(232); }
+
+      function startInspectorResize(e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        resizing.value = true;
+        document.body.classList.add('col-resizing');
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+        window.addEventListener('pointermove', onInspectorResize);
+        window.addEventListener('pointerup', endInspectorResize);
+      }
+
+      function onInspectorResize(e) {
+        if (!resizing.value) return;
+        a.setInspectorWidth(window.innerWidth - e.clientX);
+      }
+
+      function endInspectorResize() {
+        resizing.value = false;
+        document.body.classList.remove('col-resizing');
+        window.removeEventListener('pointermove', onInspectorResize);
+        window.removeEventListener('pointerup', endInspectorResize);
+      }
+
+      function resetInspectorWidth() { a.setInspectorWidth(344); }
+
       /* ---------- view ---------- */
       function setZoom(v) { a.setZoom(v); }
       function setFilter(v) { s.filters.text = v; }
@@ -347,6 +415,16 @@
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
           e.preventDefault();
           exportJSON();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+          e.preventDefault();
+          toggleRail();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
+          e.preventDefault();
+          toggleInspector();
           return;
         }
         if (typing) return;
@@ -407,6 +485,10 @@
         var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail-w'));
         if (!isNaN(v) && v > 0) railW.value = v;
 
+        applyNarrow();
+        if (mql && mql.addEventListener) mql.addEventListener('change', applyNarrow);
+        else if (mql && mql.addListener) mql.addListener(applyNarrow);
+
         window.addEventListener('keydown', onKeydown);
         window.addEventListener('dragover', onDragOver);
         window.addEventListener('dragenter', onDragEnter);
@@ -418,6 +500,8 @@
       });
 
       Vue.onUnmounted(function () {
+        if (mql && mql.removeEventListener) mql.removeEventListener('change', applyNarrow);
+        else if (mql && mql.removeListener) mql.removeListener(applyNarrow);
         window.removeEventListener('keydown', onKeydown);
         window.removeEventListener('dragover', onDragOver);
         window.removeEventListener('dragenter', onDragEnter);
@@ -435,6 +519,9 @@
         railW: railW,
         inspectorOpen: inspectorOpen,
         viewport: viewport,
+        shellStyle: shellStyle,
+        railVisible: railVisible,
+        resizing: resizing,
         zoomMin: store.ZOOM_MIN,
         zoomMax: store.ZOOM_MAX,
         selectedScene: selectedScene,
@@ -478,6 +565,11 @@
 
         setZoom: setZoom,
         setFilter: setFilter,
+        toggleRail: toggleRail,
+        startRailResize: startRailResize,
+        resetRailWidth: resetRailWidth,
+        startInspectorResize: startInspectorResize,
+        resetInspectorWidth: resetInspectorWidth,
         toggleStrip: toggleStrip,
         toggleTheme: toggleTheme,
         toggleInspector: toggleInspector,
@@ -487,7 +579,7 @@
     },
 
     template: `
-<div class="shell" :class="{ 'no-inspector': !inspectorOpen }">
+<div class="shell" :style="shellStyle">
 
   <lt-top-bar
     :title="s.project.meta.title"
@@ -496,6 +588,7 @@
     :zoom="s.zoom"
     :zoom-min="zoomMin"
     :zoom-max="zoomMax"
+    :rail-open="railVisible"
     :show-pov="s.showPov"
     :show-places="s.showPlaces"
     :show-time="s.showTime"
@@ -509,6 +602,7 @@
     @undo="a.undo()"
     @redo="a.redo()"
     @toggle-strip="toggleStrip"
+    @toggle-rail="toggleRail"
     @zoom="setZoom"
     @filter="setFilter"
     @add-scene="addScene"
@@ -516,18 +610,18 @@
     @toggle-theme="toggleTheme"
     @open-help="openModal('help')" />
 
-  <lt-rail
-    :characters="s.project.entities.characters"
-    :scenes="s.project.scenes"
-    :selection="s.selection"
-    :report="report"
-    @select-entity="onSelectEntity"
-    @select-scene="onSelectScene"
-    @add-character="addCharacter"
-    @rename-character="renameCharacter"
-    @remove-character="removeCharacter"
-    @cycle-color="cycleColor"
-    @jump-report="onJumpReport" />
+  <div v-if="railVisible" class="rail-wrap">
+    <lt-rail
+      :scenes="s.project.scenes"
+      :selection="s.selection"
+      :report="report"
+      @select-scene="onSelectScene"
+      @jump-report="onJumpReport" />
+    <div class="rail-resizer" :class="{ active: resizing }"
+         title="Drag to resize · double-click to reset"
+         @pointerdown="startRailResize"
+         @dblclick="resetRailWidth"></div>
+  </div>
 
   <main class="stage">
     <lt-matrix
@@ -547,8 +641,13 @@
       :filters="s.filters"
       @select-scene="onSelectScene"
       @select-cell="onSelectCell"
+      @select-entity="onSelectEntity"
       @cycle-cell="onCycleCell"
       @edit-cell="onEditCell"
+      @add-character="addCharacter"
+      @rename-character="renameCharacter"
+      @remove-character="removeCharacter"
+      @cycle-color="cycleColor"
       @drop-scene="onDropScene"
       @viewport="onViewport" />
 
@@ -560,25 +659,31 @@
       @jump="onMinimapJump" />
   </main>
 
-  <aside v-if="inspectorOpen" class="inspector">
-    <lt-inspector
-      :selection="s.selection"
-      :scene="selectedScene"
-      :entity="selectedEntity"
-      :cell="selectedCell"
-      :all-scenes="s.project.scenes"
-      :chapters="s.project.chapters"
-      :characters="s.project.entities.characters"
-      @update-cell="updateCell"
-      @update-note="updateNote"
-      @set-presence="setPresence"
-      @clear-cell="clearCell"
-      @update-scene="updateScene"
-      @select-scene="onSelectScene"
-      @move-scene="moveScene"
-      @remove-scene="removeScene"
-      @close="a.select(null, null)" />
-  </aside>
+  <div v-if="inspectorOpen" class="inspector-wrap">
+    <div class="inspector-resizer" :class="{ active: resizing }"
+         title="Drag to resize · double-click to reset"
+         @pointerdown="startInspectorResize"
+         @dblclick="resetInspectorWidth"></div>
+    <div class="inspector">
+      <lt-inspector
+        :selection="s.selection"
+        :scene="selectedScene"
+        :entity="selectedEntity"
+        :cell="selectedCell"
+        :all-scenes="s.project.scenes"
+        :chapters="s.project.chapters"
+        :characters="s.project.entities.characters"
+        @update-cell="updateCell"
+        @update-note="updateNote"
+        @set-presence="setPresence"
+        @clear-cell="clearCell"
+        @update-scene="updateScene"
+        @select-scene="onSelectScene"
+        @move-scene="moveScene"
+        @remove-scene="removeScene"
+        @close="a.select(null, null)" />
+    </div>
+  </div>
 
   <footer class="statusbar">
     <span v-if="s.dirty" class="unsaved-dot" title="Unsaved changes"></span>

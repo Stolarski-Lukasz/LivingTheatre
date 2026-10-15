@@ -28,8 +28,9 @@
       showTime: Boolean,
       filters: Object
     },
-    emits: ['select-scene', 'select-cell', 'cycle-cell', 'edit-cell', 'edit-note',
-            'move-scene', 'drop-scene', 'viewport', 'add-scene'],
+    emits: ['select-scene', 'select-cell', 'select-entity', 'cycle-cell', 'edit-cell',
+            'add-character', 'rename-character', 'remove-character', 'cycle-color',
+            'drop-scene', 'viewport'],
 
     components: {
       LtRuler: LT.components.Ruler
@@ -65,12 +66,35 @@
       <div v-if="drag.active" class="m-dropline" :style="dropStyle"></div>
     </div>
 
+    <div class="m-row m-addrow">
+      <div class="m-rowhead add-rowhead" title="Add a character"
+           @click="$emit('add-character')">
+        <span class="add-plus">+</span><span>character</span>
+      </div>
+      <div class="m-addcell" :style="cellStyle"></div>
+    </div>
+
     <div v-for="row in rows" :key="row.key" class="m-row" :style="rowStyle(row)">
-      <div class="m-rowhead" :class="row.headClass"
-           :title="row.tip">
+      <div class="m-rowhead" :class="[row.headClass, { selected: isEntitySelected(row) }]"
+           @click="onRowheadClick(row)"
+           @dblclick="onRowheadDblClick(row)">
         <span v-if="row.color" class="swatch" :style="{ background: row.color }"></span>
-        <span class="rh-name">{{ row.label }}</span>
-        <span v-if="row.badge" class="rh-count">{{ row.badge }}</span>
+        <input v-if="renaming.key === row.key" class="rh-input" ref="rhEditor"
+               v-model="renaming.value"
+               @click.stop @blur="commitRename"
+               @keydown.enter.prevent="commitRename"
+               @keydown.esc.prevent="cancelRename"
+               @keydown.stop>
+        <template v-else>
+          <span class="rh-name" :title="row.tip">{{ row.label }}</span>
+          <span v-if="row.badge" class="rh-count">{{ row.badge }}</span>
+          <span v-if="row.kind === 'character'" class="rh-tools">
+            <button class="icon-btn" title="Next colour"
+                    @click.stop="$emit('cycle-color', row.entity.id)">◐</button>
+            <button class="icon-btn" title="Remove character"
+                    @click.stop="$emit('remove-character', row.entity.id)">✕</button>
+          </span>
+        </template>
       </div>
 
       <template v-for="s in scenes" :key="s.id">
@@ -115,6 +139,7 @@
       var emit = ctx.emit;
       var scroller = Vue.ref(null);
       var editing = Vue.reactive({ sceneId: null, entityId: null, value: '' });
+      var renaming = Vue.reactive({ key: null, entityId: null, value: '' });
       var drag = Vue.reactive({
         active: false, sceneId: null, from: -1, to: -1, startX: 0, suppressClick: false
       });
@@ -158,6 +183,17 @@
             headClass: c.status === 'mentioned' ? 'offstage' : ''
           });
         });
+        if (!props.characters.length) {
+          list.push({
+            key: 'nochars',
+            kind: 'none',
+            label: 'no characters',
+            tip: 'Use the + character row above the tracks.',
+            color: '',
+            badge: '',
+            headClass: 'special'
+          });
+        }
         if (props.showPov) {
           list.push({ key: 'strip:pov', kind: 'pov', label: 'Perspective', headClass: 'stripe' });
         }
@@ -360,6 +396,44 @@
         });
       }
 
+      /* ---------- row headers ---------- */
+      function isEntitySelected(row) {
+        return row.kind === 'character' &&
+          props.selection.entityId === row.entity.id;
+      }
+
+      function onRowheadClick(row) {
+        if (renaming.key === row.key) return;
+        if (row.kind === 'character') emit('select-entity', row.entity.id);
+      }
+
+      function onRowheadDblClick(row) {
+        if (row.kind !== 'character') return;
+        renaming.key = row.key;
+        renaming.entityId = row.entity.id;
+        renaming.value = row.entity.name;
+        emit('select-entity', row.entity.id);
+        Vue.nextTick(function () {
+          var el = scroller.value && scroller.value.querySelector('.rh-input');
+          if (el) { el.focus(); el.select(); }
+        });
+      }
+
+      function commitRename() {
+        var id = renaming.entityId;
+        var name = String(renaming.value || '').trim();
+        renaming.key = null;
+        renaming.entityId = null;
+        renaming.value = '';
+        if (id && name) emit('rename-character', id, name);
+      }
+
+      function cancelRename() {
+        renaming.key = null;
+        renaming.entityId = null;
+        renaming.value = '';
+      }
+
       /* ---------- cells ---------- */
       function onCellClick(e, row, s) {
         if (e.altKey) {
@@ -433,6 +507,7 @@
       return {
         scroller: scroller,
         editing: editing,
+        renaming: renaming,
         drag: drag,
         canvasStyle: canvasStyle,
         colStyle: colStyle,
@@ -440,6 +515,11 @@
         dropStyle: dropStyle,
         rows: rows,
         rowStyle: rowStyle,
+        isEntitySelected: isEntitySelected,
+        onRowheadClick: onRowheadClick,
+        onRowheadDblClick: onRowheadDblClick,
+        commitRename: commitRename,
+        cancelRename: cancelRename,
         cellOf: cellOf,
         cellText: cellText,
         cellNote: cellNote,

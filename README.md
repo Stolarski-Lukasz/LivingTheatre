@@ -66,20 +66,29 @@ Details that matter in practice:
   (absent → idle → active), double-click writes what the character does
   (`ctrl+enter` or blur to commit, `esc` to cancel).
 - **Reorder** by dragging a scene header; a drop line shows the landing gap.
+- **Tracks** — one row per character, above them a `+ character` row to add
+  more. Double-click a track name to rename, and hover a track for its colour
+  and remove buttons. Characters are deliberately **not** duplicated in the
+  sidebar; the matrix is where they live. The sidebar width is remembered
+  between sessions.
+- **Sidebar** — collapsible (`‹` in the toolbar or `ctrl+B`) and resizable
+  (drag its right edge, double-click to reset). It lists scenes and the
+  report, and scrolls. The inspector on the right works the same way
+  (`›` or `ctrl+I`, drag its left edge to resize). Both widths are
+  remembered between sessions.
 - **Ruler** — three bands: *order* (presentation, aligned with the columns),
   *story* (connectors from each column to its position on the story-time axis),
   and *when* (the story-time axis itself, proportionally ticked at chapter
   boundaries and range ends). A connector that jumps backwards is a flashback;
   the dashed ones are exactly that.
-- **Tracks** — characters with active-count badges, then the perspective,
-  place and story-time strips. Toggle the strips from the toolbar. A text
-  filter dims non-matching cells.
+- **Strips** — the perspective, place and story-time rows under the character
+  tracks. Toggle them from the toolbar. A text filter dims non-matching cells.
 - **Inspector** — two tabs, *Scene* and *Cell*, both always reachable: the
   scene tab holds title, story time, mode + anchor, chapter, perspective,
   place, hidden flag and summary; the cell tab holds presence, diegetic prose
   and author note.
 - **Minimap** — under the matrix, with a window showing the visible span.
-- **Report** — the left rail flags characters active in two scenes that
+- **Report** — the sidebar flags characters active in two scenes that
   overlap in story time but sit in different places, and non-linear scenes
   with no anchor. Click an item to jump.
 - Everything persists to `localStorage` as you type. Undo is `ctrl+Z`, redo
@@ -93,6 +102,9 @@ Details that matter in practice:
 | alt+click cell | cycle presence |
 | double-click cell | edit what the character does |
 | drag scene header | reorder the presentation |
+| double-click track name | rename a character |
+| ctrl+B | show / hide the sidebar |
+| ctrl+I | show / hide the inspector |
 | ctrl+wheel | zoom at the pointer |
 | ← → | previous / next scene |
 | ↑ ↓ | previous / next character |

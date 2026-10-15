@@ -54,7 +54,7 @@ const stats = await page.evaluate(() => ({
 }));
 check('sample imported via modal', stats.scenes === 23, JSON.stringify(stats));
 check('column headers rendered', stats.colheads === 23);
-check('character rows rendered', stats.rows === 12, 'rows=' + stats.rows);
+check('character rows rendered', stats.rows === 13, 'rows=' + stats.rows);
 check('presence cells colored', stats.activeCells > 20, 'active=' + stats.activeCells);
 
 await page.screenshot({ path: path.join(shots, '01-loaded.png') });
@@ -159,7 +159,8 @@ await page.evaluate(() => window.LT.store.actions.setZoom(56));
 await page.waitForTimeout(100);
 
 const clicked = await page.evaluate(async () => {
-  const cell = document.querySelectorAll('.m-row')[0].querySelectorAll('.m-cell')[2];
+  const charRows = [...document.querySelectorAll('.m-row')].filter((r) => r.querySelector('.m-cell'));
+  const cell = charRows[0].querySelectorAll('.m-cell')[2];
   cell.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   await new Promise((r) => setTimeout(r, 50));
   const sel = window.LT.store.state.selection;
@@ -170,7 +171,8 @@ check('click selects', clicked.hasScene && clicked.hasEntity && clicked.selected
 
 const alted = await page.evaluate(async () => {
   const s = window.LT.store.state;
-  const cell = document.querySelectorAll('.m-row')[0].querySelectorAll('.m-cell')[5];
+  const cr = [...document.querySelectorAll('.m-row')].filter((r) => r.querySelector('.m-cell'));
+  const cell = cr[0].querySelectorAll('.m-cell')[5];
   const sceneId = s.project.scenes[5].id;
   const entityId = s.project.entities.characters[0].id;
   const before = window.LT.store.actions.getCell(sceneId, entityId);
@@ -184,7 +186,8 @@ check('alt+click cycles presence', alted.before !== alted.after,
 
 const dbl = await page.evaluate(async () => {
   const s = window.LT.store.state;
-  const cell = document.querySelectorAll('.m-row')[0].querySelectorAll('.m-cell')[6];
+  const cr6 = [...document.querySelectorAll('.m-row')].filter((r) => r.querySelector('.m-cell'));
+  const cell = cr6[0].querySelectorAll('.m-cell')[6];
   cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
   await new Promise((r) => setTimeout(r, 80));
   const ed = document.querySelector('.cell-input');
@@ -262,6 +265,106 @@ const mm = await page.evaluate(async () => {
 });
 check('minimap ticks', mm.ticks === 23);
 check('minimap viewport window tracks scroll', mm.before !== mm.after, mm.before + ' -> ' + mm.after);
+
+console.log('\n== rail collapse & resize ==');
+const railBefore = await page.evaluate(() => ({
+  rail: !!document.querySelector('.rail-wrap'),
+  railW: document.querySelector('.rail').getBoundingClientRect().width,
+  stageW: document.querySelector('.stage').getBoundingClientRect().width,
+  sceneRows: document.querySelectorAll('.rail .scene-no').length,
+  hasCharSection: [...document.querySelectorAll('.rail-head')].some((h) => /characters/i.test(h.textContent)),
+  addRow: !!document.querySelector('.m-addrow'),
+  charRowheads: document.querySelectorAll('.m-rowhead:not(.stripe):not(.add-rowhead):not(.special)').length
+}));
+check('rail shows scenes only', railBefore.rail && railBefore.sceneRows === 23 && !railBefore.hasCharSection,
+  JSON.stringify(railBefore));
+check('add-character row in matrix', railBefore.addRow);
+check('character rows in matrix', railBefore.charRowheads === 9, 'rows=' + railBefore.charRowheads);
+
+await page.click('.topbar .btn.icon >> text="‹"');
+await page.waitForTimeout(150);
+const collapsed = await page.evaluate(() => ({
+  rail: !!document.querySelector('.rail-wrap'),
+  stageW: document.querySelector('.stage').getBoundingClientRect().width
+}));
+check('toggle collapses rail', !collapsed.rail);
+check('stage widens when rail collapses', collapsed.stageW > railBefore.stageW + 180,
+  railBefore.stageW + ' -> ' + collapsed.stageW);
+await page.screenshot({ path: path.join(shots, '10-rail-collapsed.png') });
+
+await page.click('.topbar .btn.icon >> text="›"');
+await page.waitForTimeout(150);
+const reopened = await page.evaluate(() => !!document.querySelector('.rail-wrap'));
+check('toggle re-opens rail', reopened);
+
+const handle = await page.$('.rail-resizer');
+const hb = await handle.boundingBox();
+await page.mouse.move(hb.x + hb.width / 2, hb.y + 300);
+await page.mouse.down();
+await page.mouse.move(420, hb.y + 300, { steps: 8 });
+await page.mouse.up();
+await page.waitForTimeout(150);
+const resized = await page.evaluate(() => ({
+  railW: window.LT.store.state.railW,
+  railPx: document.querySelector('.rail').getBoundingClientRect().width
+}));
+check('drag resizes rail', Math.abs(resized.railW - 420) < 8 && Math.abs(resized.railPx - 420) < 8,
+  JSON.stringify(resized));
+await page.screenshot({ path: path.join(shots, '11-rail-resized.png') });
+
+await page.hover('.m-rowhead:not(.stripe):not(.add-rowhead):not(.special)');
+await page.waitForTimeout(120);
+const tools = await page.evaluate(() => {
+  const t = document.querySelector('.rh-tools');
+  if (!t) return { shown: false, buttons: 0 };
+  return { shown: getComputedStyle(t).display !== 'none', buttons: t.querySelectorAll('button').length };
+});
+check('rowhead hover reveals tools', tools.shown && tools.buttons === 2, JSON.stringify(tools));
+await page.screenshot({ path: path.join(shots, '12-rowhead-tools.png') });
+
+console.log('\n== inspector resize ==');
+const inspBefore = await page.evaluate(() => ({
+  wrap: !!document.querySelector('.inspector-wrap'),
+  resizer: !!document.querySelector('.inspector-resizer'),
+  w: document.querySelector('.inspector').getBoundingClientRect().width,
+  stageW: document.querySelector('.stage').getBoundingClientRect().width
+}));
+check('inspector wrap + resizer present', inspBefore.wrap && inspBefore.resizer);
+check('inspector default width', Math.abs(inspBefore.w - 344) < 2, 'w=' + inspBefore.w);
+
+const ih = await page.$('.inspector-resizer');
+const ib = await ih.boundingBox();
+await page.mouse.move(ib.x + ib.width / 2, ib.y + 400);
+await page.mouse.down();
+await page.mouse.move(ib.x - 160, ib.y + 400, { steps: 8 });
+await page.mouse.up();
+await page.waitForTimeout(150);
+const inspResized = await page.evaluate(() => ({
+  w: window.LT.store.state.inspectorW,
+  px: document.querySelector('.inspector').getBoundingClientRect().width,
+  stageW: document.querySelector('.stage').getBoundingClientRect().width
+}));
+check('drag resizes inspector', Math.abs(inspResized.w - 504) < 8 && Math.abs(inspResized.px - 504) < 8,
+  JSON.stringify(inspResized));
+check('stage shrinks when inspector grows', inspResized.stageW < inspBefore.stageW - 150,
+  inspBefore.stageW + ' -> ' + inspResized.stageW);
+await page.screenshot({ path: path.join(shots, '13-inspector-resized.png') });
+
+await page.keyboard.press('Control+i');
+await page.waitForTimeout(150);
+const inspHidden = await page.evaluate(() => ({
+  wrap: !!document.querySelector('.inspector-wrap'),
+  cols: document.querySelector('.shell').style.gridTemplateColumns
+}));
+check('ctrl+I hides inspector', !inspHidden.wrap && inspHidden.cols.endsWith('0px'), inspHidden.cols);
+await page.keyboard.press('Control+i');
+await page.waitForTimeout(150);
+check('ctrl+I shows inspector', await page.evaluate(() => !!document.querySelector('.inspector-wrap')));
+
+await page.evaluate(() => window.LT.store.actions.setInspectorWidth(344));
+await page.waitForTimeout(100);
+const uiSaved = await page.evaluate(() => JSON.parse(window.localStorage.getItem('livingtheatre.ui.v1') || '{}'));
+check('inspector width persisted', uiSaved.inspectorW === 344, JSON.stringify(uiSaved));
 
 console.log('\n== persistence & reload ==');
 await page.evaluate(() => window.LT.store.actions.persist());

@@ -196,7 +196,10 @@ await (async () => {
   check('idle cells', window.document.querySelectorAll('.m-cell.p-idle').length > 0);
   check('ruler rendered', !!window.document.querySelector('.ruler'));
   check('ruler axis ticks', window.document.querySelectorAll('.ruler-axistick').length > 0);
-  check('rail characters', window.document.querySelectorAll('.track-row').length > 10);
+  check('rail scene rows', window.document.querySelectorAll('.rail .scene-no').length === 23,
+    'rows=' + window.document.querySelectorAll('.rail .scene-no').length);
+  check('rail has no character list', window.document.querySelectorAll('.rail .rail-head').length === 2,
+    'sections=' + window.document.querySelectorAll('.rail .rail-head').length);
   check('inspector tabs', window.document.querySelectorAll('.insp-tabs button').length === 3);
   check('statusbar', !!window.document.querySelector('.statusbar'));
   check('minimap', window.document.querySelectorAll('.mm-tick').length === 23);
@@ -220,7 +223,8 @@ await (async () => {
   const key = (k, init) => window.dispatchEvent(new window.KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, init)));
 
   /* click a character cell selects scene + character */
-  const firstCell = doc.querySelector('.m-cell');
+  const charRows0 = [...doc.querySelectorAll('.m-row')].filter((r) => r.querySelector('.m-cell'));
+  const firstCell = charRows0[0].querySelectorAll('.m-cell')[0];
   fire(firstCell, 'click');
   await flush();
   check('cell click selects scene', !!s.selection.sceneId);
@@ -228,7 +232,8 @@ await (async () => {
   check('cell shows selected', !!doc.querySelector('.m-cell.selected'));
 
   /* alt+click cycles presence of a specific cell */
-  const targetCell = doc.querySelectorAll('.m-row')[0].querySelectorAll('.m-cell')[1];
+  const charRows = [...doc.querySelectorAll('.m-row')].filter((r) => r.querySelector('.m-cell'));
+  const targetCell = charRows[0].querySelectorAll('.m-cell')[1];
   const scene1 = s.project.scenes[1];
   const char0 = s.project.entities.characters[0];
   const before1 = a.getCell(scene1.id, char0.id);
@@ -360,6 +365,145 @@ await (async () => {
   key('Escape');
   await flush();
   check('escape clears selection', s.selection.sceneId === null && s.selection.entityId === null);
+
+  await flush();
+  console.log('\n== character tracks in the matrix ==');
+  const addRow = doc.querySelector('.m-addrow .add-rowhead');
+  check('add-character row exists', !!addRow);
+  const charsBefore = s.project.entities.characters.length;
+  if (addRow) { fire(addRow, 'click'); await flush(); }
+  eq('add row adds a character', s.project.entities.characters.length, charsBefore + 1);
+  check('new character selected', s.selection.entityId === s.project.entities.characters[charsBefore].id);
+
+  const rowheads = doc.querySelectorAll('.m-rowhead:not(.stripe):not(.add-rowhead):not(.special)');
+  check('character rowheads rendered', rowheads.length === charsBefore + 1, 'rows=' + rowheads.length);
+
+  const newId = s.project.entities.characters[charsBefore].id;
+  const firstCharacterId = s.project.entities.characters[0].id;
+  const targetRowhead = [...doc.querySelectorAll('.m-row')]
+    .map((r) => r.querySelector('.m-rowhead'))
+    .filter((el) => el && !el.classList.contains('add-rowhead') && !el.classList.contains('stripe') && !el.classList.contains('special'))[0];
+  if (targetRowhead) {
+    fire(targetRowhead, 'dblclick');
+    await flush();
+    const input = doc.querySelector('.rh-input');
+    check('dblclick opens rename', !!input);
+    if (input) {
+      check('rename prefilled', input.value === s.project.entities.characters[0].name, input.value);
+      input.value = 'Renamed Hero';
+      input.dispatchEvent(new window.Event('input', { bubbles: true }));
+      await flush();
+      input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await flush();
+      const renamed = s.project.entities.characters.find((c) => c.id === firstCharacterId);
+      check('enter commits rename', renamed && renamed.name === 'Renamed Hero',
+        renamed && renamed.name);
+      check('rename input closed', !doc.querySelector('.rh-input'));
+    }
+  }
+
+  const colorBtn = [...doc.querySelectorAll('.rh-tools button')].find((b) => b.title.includes('colour'));
+  const colorBefore = s.project.entities.characters[0].color;
+  if (colorBtn) { fire(colorBtn, 'click'); await flush(); }
+  check('rowhead cycles colour', s.project.entities.characters[0].color !== colorBefore);
+
+  const removeBtn = [...doc.querySelectorAll('.rh-tools button')].find((b) => b.title.includes('Remove'));
+  const countBefore = s.project.entities.characters.length;
+  if (removeBtn) {
+    window.confirm = () => true;
+    fire(removeBtn, 'click');
+    await flush();
+  }
+  eq('rowhead removes character', s.project.entities.characters.length, countBefore - 1);
+
+  const rowheadClick = [...doc.querySelectorAll('.m-rowhead:not(.stripe):not(.add-rowhead):not(.special)')][0];
+  fire(rowheadClick, 'click');
+  await flush();
+  check('rowhead click selects character', !!s.selection.entityId);
+
+  await flush();
+  console.log('\n== rail collapse & resize ==');
+  const railToggle = [...doc.querySelectorAll('.topbar .btn')].find((b) => b.classList.contains('icon') && (b.textContent.trim() === '‹' || b.textContent.trim() === '›'));
+  check('rail toggle button exists', !!railToggle);
+  check('rail visible initially', !!doc.querySelector('.rail-wrap'));
+  const shell = doc.querySelector('.shell');
+  check('shell columns include rail width', shell.getAttribute('style').includes('232px'),
+    shell.getAttribute('style'));
+  if (railToggle) { fire(railToggle, 'click'); await flush(); }
+  check('rail collapses', !doc.querySelector('.rail-wrap'));
+  check('shell rail column is 0', shell.getAttribute('style').includes('0px 1fr'),
+    shell.getAttribute('style'));
+  if (railToggle) { fire(railToggle, 'click'); await flush(); }
+  check('rail re-opens', !!doc.querySelector('.rail-wrap'));
+
+  a.setRailWidth(320);
+  await flush();
+  check('rail width resizes', s.railW === 320 && shell.getAttribute('style').includes('320px'),
+    shell.getAttribute('style'));
+  a.setRailWidth(9999);
+  check('rail width clamps to max', s.railW === 520, 'railW=' + s.railW);
+  a.setRailWidth(10);
+  check('rail width clamps to min', s.railW === 180, 'railW=' + s.railW);
+
+  const handle = doc.querySelector('.rail-resizer');
+  check('resize handle exists', !!handle);
+  if (handle) {
+    handle.dispatchEvent(new window.MouseEvent('pointerdown', { button: 0, bubbles: true, clientX: 232, pointerId: 3 }));
+    fireWin('pointermove', { clientX: 380 });
+    fireWin('pointerup', {});
+    await flush();
+    check('drag resizes the rail', s.railW === 380, 'railW=' + s.railW);
+  }
+
+  key('b', { ctrlKey: true });
+  await flush();
+  check('ctrl+B collapses rail', !doc.querySelector('.rail-wrap'));
+  key('b', { ctrlKey: true });
+  await flush();
+  check('ctrl+B re-opens rail', !!doc.querySelector('.rail-wrap'));
+
+  a.setRailOpen(false);
+  await flush();
+  const uiRaw = window.localStorage.getItem('livingtheatre.ui.v1');
+  check('ui prefs persisted', !!uiRaw && JSON.parse(uiRaw).railOpen === false, uiRaw);
+  a.setRailOpen(true);
+
+  await flush();
+  console.log('\n== inspector resize ==');
+  const inspWrap = doc.querySelector('.inspector-wrap');
+  check('inspector wrap exists', !!inspWrap);
+  check('inspector panel exists', !!doc.querySelector('.inspector .inspector-inner'));
+  check('inspector resizer exists', !!doc.querySelector('.inspector-resizer'));
+  const shellCols = () => shell.getAttribute('style').replace(/;\s*$/, '');
+  a.setInspectorWidth(420);
+  await flush();
+  check('inspector width sets', s.inspectorW === 420 && shellCols().endsWith('420px'),
+    shellCols());
+  a.setInspectorWidth(10);
+  check('inspector width clamps to min', s.inspectorW === 300, 'w=' + s.inspectorW);
+  a.setInspectorWidth(9999);
+  check('inspector width clamps to max', s.inspectorW === 620, 'w=' + s.inspectorW);
+  const iHandle = doc.querySelector('.inspector-resizer');
+  if (iHandle) {
+    window.innerWidth = 1000;
+    iHandle.dispatchEvent(new window.MouseEvent('pointerdown', { button: 0, bubbles: true, clientX: 700, pointerId: 4 }));
+    fireWin('pointermove', { clientX: 640 });
+    fireWin('pointerup', {});
+    await flush();
+    check('drag resizes inspector', s.inspectorW === 360, 'w=' + s.inspectorW);
+  }
+  const inspToggle = [...doc.querySelectorAll('.topbar .btn.icon')].find((b) => b.textContent.trim() === '›' || b.textContent.trim() === '‹');
+  key('i', { ctrlKey: true });
+  await flush();
+  check('ctrl+I hides inspector', !doc.querySelector('.inspector-wrap'));
+  check('shell inspector column 0', shellCols().endsWith('0px'), shellCols());
+  key('i', { ctrlKey: true });
+  await flush();
+  check('ctrl+I shows inspector', !!doc.querySelector('.inspector-wrap'));
+  a.setInspectorWidth(344);
+  await flush();
+  const uiRaw2 = window.localStorage.getItem('livingtheatre.ui.v1');
+  check('inspector width persisted', !!uiRaw2 && JSON.parse(uiRaw2).inspectorW === 344, uiRaw2);
 
   /* undo via keyboard */
   const n2 = s.project.scenes.length;

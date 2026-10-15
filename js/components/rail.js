@@ -1,6 +1,7 @@
 /* LivingTheatre — left rail.
-   Characters, scenes and the contradiction report. Rail rows never own state;
-   they only drive selection in the store. */
+   Scenes and the report. Characters are not listed here — they live in the
+   matrix as track rows, with their own hover tools; repeating them in a
+   navigation pane was duplication. */
 (function (LT) {
   'use strict';
 
@@ -11,38 +12,14 @@
   LT.components.Rail = {
     name: 'LtRail',
     props: {
-      characters: Array,
       scenes: Array,
       selection: Object,
       report: Object
     },
-    emits: ['select-entity', 'select-scene', 'add-character', 'rename-character',
-            'remove-character', 'cycle-color', 'jump-report'],
+    emits: ['select-scene', 'jump-report'],
 
     template: `
 <aside class="rail">
-  <div class="rail-section">
-    <div class="rail-head">
-      <span>Characters</span>
-      <span class="spacer"></span>
-      <button class="btn ghost icon" title="Add character" @click="$emit('add-character')">+</button>
-    </div>
-    <div v-if="!characters.length" class="rail-empty">
-      Import a sheet or add a character.
-    </div>
-    <div v-for="c in characters" :key="c.id"
-         class="track-row"
-         :class="{ selected: selection.entityId === c.id, offstage: c.status === 'mentioned' }"
-         @click="$emit('select-entity', c.id)">
-      <span class="swatch" :style="{ background: c.color }"></span>
-      <input class="track-name" :value="c.name" :title="c.summary || c.name"
-             @click.stop
-             @change="$emit('rename-character', c.id, $event.target.value)">
-      <button class="icon-btn" title="Next colour" @click.stop="$emit('cycle-color', c.id)">◐</button>
-      <button class="icon-btn" title="Remove character" @click.stop="$emit('remove-character', c.id)">✕</button>
-    </div>
-  </div>
-
   <div class="rail-section">
     <div class="rail-head">
       <span>Scenes</span>

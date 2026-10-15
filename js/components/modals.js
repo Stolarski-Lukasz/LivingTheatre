@@ -90,6 +90,9 @@
           <tr><td>double-click cell</td><td>write what the character does</td></tr>
           <tr><td>alt+click cell</td><td>cycle presence · absent → idle → active</td></tr>
           <tr><td>drag scene header</td><td>reorder the presentation</td></tr>
+          <tr><td>double-click track name</td><td>rename a character</td></tr>
+          <tr><td>ctrl+B</td><td>show / hide the sidebar</td></tr>
+          <tr><td>ctrl+I</td><td>show / hide the inspector</td></tr>
           <tr><td>ctrl+wheel / pinch</td><td>zoom anchored at the pointer</td></tr>
           <tr><td>← →</td><td>previous / next scene</td></tr>
           <tr><td>↑ ↓</td><td>previous / next character</td></tr>

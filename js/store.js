@@ -9,8 +9,14 @@
   var STORAGE_KEY = 'livingtheatre.projects.v1';
   var ACTIVE_KEY = 'livingtheatre.active.v1';
   var THEME_KEY = 'livingtheatre.theme.v1';
+  var UI_KEY = 'livingtheatre.ui.v1';
   var HISTORY_LIMIT = 80;
   var COALESCE_MS = 700;
+
+  var RAIL_MIN = 180;
+  var RAIL_MAX = 520;
+  var INSPECTOR_MIN = 300;
+  var INSPECTOR_MAX = 620;
 
   var state = Vue.reactive({
     project: model.createProject(),
@@ -18,6 +24,9 @@
     library: [],
     selection: { sceneId: null, entityId: null },
     zoom: 56,
+    railOpen: true,
+    railW: 232,
+    inspectorW: 344,
     showPov: true,
     showPlaces: true,
     showTime: true,
@@ -309,8 +318,49 @@
       state.project = model.migrate(active);
       state.projectId = state.project.meta.id;
     }
+    restoreUI();
     refreshLibrary();
     return state.project;
+  }
+
+  /* ---------- ui preferences ---------- */
+  function restoreUI() {
+    var ui = readJSON(UI_KEY, null);
+    if (!ui) return;
+    if (typeof ui.railOpen === 'boolean') state.railOpen = ui.railOpen;
+    if (typeof ui.railW === 'number' && ui.railW >= RAIL_MIN && ui.railW <= RAIL_MAX) {
+      state.railW = ui.railW;
+    }
+    if (typeof ui.inspectorW === 'number' && ui.inspectorW >= INSPECTOR_MIN && ui.inspectorW <= INSPECTOR_MAX) {
+      state.inspectorW = ui.inspectorW;
+    }
+  }
+
+  function persistUI() {
+    writeJSON(UI_KEY, {
+      railOpen: state.railOpen,
+      railW: state.railW,
+      inspectorW: state.inspectorW
+    });
+  }
+
+  function setRailOpen(open) {
+    state.railOpen = !!open;
+    persistUI();
+  }
+
+  function toggleRail() {
+    setRailOpen(!state.railOpen);
+  }
+
+  function setRailWidth(w) {
+    state.railW = Math.max(RAIL_MIN, Math.min(RAIL_MAX, Math.round(w)));
+    persistUI();
+  }
+
+  function setInspectorWidth(w) {
+    state.inspectorW = Math.max(INSPECTOR_MIN, Math.min(INSPECTOR_MAX, Math.round(w)));
+    persistUI();
   }
 
   function setTheme(theme) {
@@ -641,6 +691,10 @@
       select: select,
       selectCell: selectCell,
       setZoom: setZoom,
+      setRailOpen: setRailOpen,
+      toggleRail: toggleRail,
+      setRailWidth: setRailWidth,
+      setInspectorWidth: setInspectorWidth,
       toggleStrip: toggleStrip,
       setTheme: setTheme
     }
